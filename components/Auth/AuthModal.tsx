@@ -26,7 +26,11 @@ export default function AuthModal({ open, onClose, initialMode = 'signin' }: Pro
     try {
       if (mode === 'signup') {
         // create account
-        const { data: suData, error: suErr } = await supabase.auth.signUp({ email, password });
+        const redirectUrl = process.env.NEXT_PUBLIC_SITE_URL || undefined;
+        const signUpPayload = redirectUrl
+          ? { email, password, options: { emailRedirectTo: redirectUrl } }
+          : { email, password };
+        const { data: suData, error: suErr } = await supabase.auth.signUp(signUpPayload as any);
         if (suErr) {
           throw suErr;
         }

@@ -30,6 +30,7 @@ html, body, #__next {
   --col2:     #f5a623;
   --col3:     #4d9ef5;
   --col4:     #2dd4a0;
+  --col5:     #8b8f96;
   --header-bg: rgba(11,12,14,0.85);
 }
 
@@ -92,7 +93,7 @@ main { padding: 2rem 2.4rem 4rem; }
 /* centered inline toggle used in auth modal */
 .auth-toggle { display:flex; justify-content:center; align-items:center; gap:8px; margin-top:12px; font-size:13px; white-space:nowrap }
 
-.board { display:grid; grid-template-columns: repeat(4,1fr); gap:1.1rem; align-items:start }
+.board { display:grid; grid-template-columns: repeat(5,1fr); gap:1.1rem; align-items:start }
 @media (max-width:1100px){ .board{ grid-template-columns: repeat(2,1fr)} }
 @media (max-width:600px){ .board{ grid-template-columns:1fr } }
 
@@ -104,6 +105,7 @@ main { padding: 2rem 2.4rem 4rem; }
 .col-1 .col-header::before{ background:var(--col2) }
 .col-2 .col-header::before{ background:var(--col3) }
 .col-3 .col-header::before{ background:var(--col4) }
+.col-4 .col-header::before{ background:var(--col5) }
 .col-name { display:flex; align-items:center; gap:0.5rem; font-size:0.78rem; font-weight:700; text-transform:uppercase; color:var(--muted) }
 .col-name-dot{ width:7px; height:7px; border-radius:50% }
 .col-count{ font-family:'JetBrains Mono', monospace; font-size:0.7rem; padding:0.15rem 0.5rem; border-radius:5px; background:var(--s2); border:1px solid var(--border); color:var(--muted) }
@@ -118,6 +120,7 @@ main { padding: 2rem 2.4rem 4rem; }
 .col-1 .card::after{ background:var(--col2) }
 .col-2 .card::after{ background:var(--col3) }
 .col-3 .card::after{ background:var(--col4) }
+.col-4 .card::after{ background:var(--col5) }
 
 .card-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:0.5rem }
 .card-title { font-size:0.88rem; font-weight:700 }

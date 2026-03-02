@@ -33,7 +33,7 @@ export default function Board() {
 
     async function load() {
       try {
-        const { data, error } = await supabase.from('projects').select('*').order('created_at', { ascending: true });
+        const { data, error } = await supabase.from('projects').select('*').eq('user_id', user.id).order('created_at', { ascending: true });
         if (error) {
           console.warn('Supabase read error, falling back to localStorage:', error.message || error.code || error);
           const raw = localStorage.getItem(STORAGE_KEY);
@@ -86,8 +86,8 @@ export default function Board() {
   // Realtime subscription to projects table (only when signed in)
   useEffect(() => {
     if (!user) return;
-    const channel = supabase.channel('public:projects')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, (payload: any) => {
+    const channel = supabase.channel(`public:projects:user:${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects', filter: `user_id=eq.${user.id}` }, (payload: any) => {
         const ev = payload.eventType;
         const row: any = payload.new || payload.old;
         if (!row) return;
@@ -151,7 +151,7 @@ export default function Board() {
   async function deleteProject(id: string) {
     if (!confirm('Delete this project?')) return;
     try {
-      const { error } = await supabase.from('projects').delete().eq('id', id);
+      const { error } = await supabase.from('projects').delete().eq('id', id).eq('user_id', user.id);
       if (error) throw error;
       setProjects((p) => p.filter(x => x.id !== id));
     } catch (err) {
@@ -172,7 +172,7 @@ export default function Board() {
           status: payload.status,
           updated_at: new Date().toISOString()
         };
-        const { data, error } = await supabase.from('projects').update(updates).eq('id', editId).select();
+        const { data, error } = await supabase.from('projects').update(updates).eq('id', editId).eq('user_id', user.id).select();
         if (error) throw error;
         if (data && data.length > 0) {
           const row = data[0];
@@ -182,6 +182,7 @@ export default function Board() {
         const toInsert = {
           name: payload.name,
           description: payload.desc || null,
+          user_id: user.id,
           tags: payload.tags || [],
           status: payload.status
         };
@@ -221,7 +222,7 @@ export default function Board() {
     // persist change to Supabase (best-effort). If the project is only local (no DB), this will fail and we keep local state.
     (async () => {
       try {
-        const { data, error } = await supabase.from('projects').update({ status: idx, updated_at: new Date().toISOString() }).eq('id', id).select();
+        const { data, error } = await supabase.from('projects').update({ status: idx, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', user.id).select();
         if (error) {
           // log and keep optimistic change
           console.warn('Failed to persist status change to Supabase:', (error as any).message || error);

@@ -10,7 +10,7 @@ const COLS = [
   { label: 'In Development', color: 'var(--col2)' },
   { label: 'Uploading / Deploying', color: 'var(--col3)' },
   { label: 'Live / Hosted', color: 'var(--col4)' },
-  { label: 'Bin (projects I stopped working on)', color: 'var(--col5)' }
+  { label: '🗑️ Bin', color: 'var(--col5)' }
 ];
 
 const STORAGE_KEY = 'pb_projects';
@@ -418,7 +418,7 @@ function ProjectForm({ projects, editId, onCancel, onSave }: { projects: Project
           <option value={1}>🟡 In Development</option>
           <option value={2}>🔵 Uploading / Deploying</option>
           <option value={3}>🟢 Live / Hosted</option>
-          <option value={4}>🗑️ Bin (Stopped)</option>
+          <option value={4}>🗑️ Bin</option>
         </select>
       </div>
       <div className="modal-footer">

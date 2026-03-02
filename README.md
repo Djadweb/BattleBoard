@@ -1,6 +1,6 @@
 # Project Board
 
-<img width="1362" height="798" alt="Screenshot 2026-03-02 at 3 42 31 am" src="https://github.com/user-attachments/assets/5f89ef8f-5c62-46c8-99db-89f8734ce12a" />
+<img width="1360" height="801" alt="Screenshot 2026-03-02 at 3 56 23 am" src="https://github.com/user-attachments/assets/db28f48d-ad83-4e31-a600-aa57c76fb936" />
 
 
 Project Board is a visual project-tracking dashboard for personal software projects. It displays all projects as cards organized into four status columns (Kanban-style) so you can view, move, and manage work at-a-glance.

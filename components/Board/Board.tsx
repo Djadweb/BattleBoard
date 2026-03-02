@@ -87,9 +87,9 @@ export default function Board() {
   useEffect(() => {
     if (!user) return;
     const channel = supabase.channel('public:projects')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, (payload: any) => {
         const ev = payload.eventType;
-        const row = payload.new || payload.old;
+        const row: any = payload.new || payload.old;
         if (!row) return;
         if (ev === 'INSERT') {
           setProjects((p) => {

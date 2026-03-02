@@ -211,7 +211,31 @@ export default function Board() {
   function onDropToColumn(idx: number) {
     const id = dragIdRef.current;
     if (!id) return;
-    setProjects((p) => p.map(x => x.id === id ? { ...x, status: idx } : x));
+    // optimistic UI update
+    setProjects((p) => {
+      const next = p.map(x => x.id === id ? { ...x, status: idx } : x);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+
+    // persist change to Supabase (best-effort). If the project is only local (no DB), this will fail and we keep local state.
+    (async () => {
+      try {
+        const { data, error } = await supabase.from('projects').update({ status: idx, updated_at: new Date().toISOString() }).eq('id', id).select();
+        if (error) {
+          // log and keep optimistic change
+          console.warn('Failed to persist status change to Supabase:', (error as any).message || error);
+          return;
+        }
+        if (data && (data as any).length > 0) {
+          const row = (data as any)[0];
+          setProjects((p) => p.map(x => x.id === row.id ? ({ id: row.id, name: row.name, desc: row.description || '', tags: row.tags || [], status: row.status, date: (row.created_at||'').slice(0,10) }) : x));
+          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch (e) {}
+        }
+      } catch (err) {
+        console.warn('Unexpected error updating project status:', err);
+      }
+    })();
   }
 
   const counts = [0,0,0,0].map((_)=>0);
@@ -266,6 +290,9 @@ export default function Board() {
           {user ? (
             <div style={{display:'flex', gap:8, alignItems:'center'}}>
               <div className="pill">{user.email}</div>
+              <button className="btn-primary" onClick={() => openModal()}>
+                <span className="btn-icon">+</span> New Project
+              </button>
               <button className="btn-secondary" onClick={async () => { await supabase.auth.signOut(); setUser(null); }}>Sign out</button>
             </div>
           ) : (

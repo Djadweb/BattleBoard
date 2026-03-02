@@ -9,7 +9,8 @@ const COLS = [
   { label: 'Not Started', color: 'var(--col1)' },
   { label: 'In Development', color: 'var(--col2)' },
   { label: 'Uploading / Deploying', color: 'var(--col3)' },
-  { label: 'Live / Hosted', color: 'var(--col4)' }
+  { label: 'Live / Hosted', color: 'var(--col4)' },
+  { label: 'Bin (projects I stopped working on)', color: 'var(--col5)' }
 ];
 
 const STORAGE_KEY = 'pb_projects';
@@ -24,6 +25,7 @@ export default function Board() {
   const [user, setUser] = useState<any | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [editId, setEditId] = useState<string | null>(null);
+  const [formResetKey, setFormResetKey] = useState(0);
   const dragIdRef = useRef<string | null>(null);
 
   // Load projects only when user is authenticated
@@ -137,7 +139,10 @@ export default function Board() {
   }, [sessionLoading, user]);
 
   function openModal(reset = true) {
-    if (reset) setEditId(null);
+    if (reset) {
+      setEditId(null);
+      setFormResetKey(k => k + 1);
+    }
     setModalOpen(true);
   }
 
@@ -239,7 +244,7 @@ export default function Board() {
     })();
   }
 
-  const counts = [0,0,0,0].map((_)=>0);
+  const counts = new Array(COLS.length).fill(0);
   projects.forEach(p => counts[p.status] = (counts[p.status] || 0) + 1);
   const total = projects.length;
   const livePct = total ? Math.round(((counts[3]||0)/total)*100) : 0;
@@ -365,7 +370,7 @@ export default function Board() {
             <div className="modal-title">{editId ? 'Edit Project' : 'New Project'}</div>
             <button className="modal-close" onClick={closeModal}>✕</button>
           </div>
-          <ProjectForm projects={projects} editId={editId} onCancel={closeModal} onSave={saveProject} />
+          <ProjectForm key={`${editId ?? 'new'}-${formResetKey}`} projects={projects} editId={editId} onCancel={closeModal} onSave={saveProject} />
         </div>
       </div>
       {/* Auth modal */}
@@ -413,6 +418,7 @@ function ProjectForm({ projects, editId, onCancel, onSave }: { projects: Project
           <option value={1}>🟡 In Development</option>
           <option value={2}>🔵 Uploading / Deploying</option>
           <option value={3}>🟢 Live / Hosted</option>
+          <option value={4}>🗑️ Bin (Stopped)</option>
         </select>
       </div>
       <div className="modal-footer">

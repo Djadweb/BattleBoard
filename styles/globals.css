@@ -66,6 +66,10 @@ header {
 
 .header-right { display:flex; align-items:center; gap:1rem }
 .pill { font-family:'JetBrains Mono', monospace; font-size:0.7rem; color:var(--muted); background:var(--s2); border:1px solid var(--border); padding:0.35rem 0.75rem; border-radius:100px }
+.project-type-toggle { display:flex; align-items:center; padding:0.2rem; background:var(--s2); border:1px solid var(--border); border-radius:999px; gap:0.25rem }
+.project-type-toggle-btn { border:none; background:transparent; color:var(--muted); padding:0.45rem 0.9rem; border-radius:999px; font-size:0.78rem; font-weight:700; cursor:pointer; transition:all 0.15s ease }
+.project-type-toggle-btn:hover { color:var(--text) }
+.project-type-toggle-btn.active { background:var(--amber); color:#000 }
 
 .btn-primary { display:flex; align-items:center; gap:0.4rem; background:var(--amber); color:#000; border:none; padding:0.5rem 1.1rem; border-radius:8px; font-family:'Archivo', sans-serif; font-size:0.82rem; font-weight:700; cursor:pointer }
 .btn-primary:hover{ background:#ffc142 }
@@ -124,6 +128,9 @@ main { padding: 2rem 2.4rem 4rem; }
 
 .card-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:0.5rem }
 .card-title { font-size:0.88rem; font-weight:700 }
+.project-type-badge { display:inline-flex; align-items:center; margin-top:0.35rem; padding:0.2rem 0.45rem; border-radius:999px; font-family:'JetBrains Mono', monospace; font-size:0.58rem; text-transform:uppercase; letter-spacing:0.08em; border:1px solid var(--border) }
+.project-type-badge.software { background:rgba(77, 158, 245, 0.12); color:var(--blue) }
+.project-type-badge.business { background:rgba(45, 212, 160, 0.12); color:var(--green) }
 .card-menu-btn{ background:none; border:none; color:var(--muted); cursor:pointer; padding:2px; font-size:1rem; opacity:0; transition:opacity 0.2s; border-radius:4px }
 .card:hover .card-menu-btn{ opacity:1 }
 .card-menu-btn:hover{ color:var(--text); background:var(--border) }
@@ -198,3 +205,15 @@ main { padding: 2rem 2.4rem 4rem; }
 /* smooth background transition when toggling theme */
 html { transition: background 0.25s ease, color 0.25s ease }
 body { transition: background 0.25s ease, color 0.25s ease }
+
+@media (max-width:900px){
+  header { flex-direction:column; align-items:flex-start; gap:1rem }
+  .header-right { width:100%; flex-direction:column; align-items:flex-start }
+}
+
+@media (max-width:600px){
+  main { padding: 1.25rem 1rem 3rem; }
+  header { padding: 1rem; }
+  .project-type-toggle { width:100%; justify-content:space-between }
+  .project-type-toggle-btn { flex:1 }
+}

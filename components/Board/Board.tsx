@@ -5,7 +5,7 @@ import AuthModal from '../Auth/AuthModal';
 import supabase from '../../lib/supabaseClient';
 import ProjectCard, { Project } from '../Card/ProjectCard';
 
-const COLS = [
+const SOFTWARE_COLS = [
   { label: 'Not Started', color: 'var(--col1)' },
   { label: 'In Development', color: 'var(--col2)' },
   { label: 'Uploading / Deploying', color: 'var(--col3)' },
@@ -13,12 +13,51 @@ const COLS = [
   { label: '🗑️ Bin', color: 'var(--col5)' }
 ];
 
+const BUSINESS_COLS = [
+  { label: 'Not Started', color: 'var(--col1)' },
+  { label: 'In Progress', color: 'var(--col2)' },
+  { label: 'Cashflow', color: 'var(--col4)' },
+  { label: '🗑️ Bin', color: 'var(--col5)' }
+];
+
 const STORAGE_KEY = 'pb_projects';
+
+type ProjectType = 'software' | 'business';
+
+function mapProject(row: any): Project {
+  return {
+    id: row.id,
+    name: row.name,
+    desc: row.description || '',
+    tags: row.tags || [],
+    status: row.status,
+    date: (row.created_at || '').slice(0,10),
+    projectType: row.project_type === 'business' ? 'business' : 'software'
+  };
+}
+
+function normalizeLocalProjects(raw: string): Project[] {
+  return JSON.parse(raw).map((project: any) => ({
+    ...project,
+    projectType: project.projectType === 'business' ? 'business' : 'software'
+  }));
+}
+
+function getColumnsForType(projectType: ProjectType) {
+  return projectType === 'business' ? BUSINESS_COLS : SOFTWARE_COLS;
+}
+
+function normalizeStatusForType(status: number, projectType: ProjectType) {
+  const maxStatus = getColumnsForType(projectType).length - 1;
+  if (Number.isNaN(status) || status < 0) return 0;
+  return Math.min(status, maxStatus);
+}
 
 function uid() { return Math.random().toString(36).slice(2,10); }
 
 export default function Board() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedType, setSelectedType] = useState<ProjectType>('software');
   const [modalOpen, setModalOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [authInitialMode, setAuthInitialMode] = useState<'signin' | 'signup'>('signin');
@@ -40,19 +79,12 @@ export default function Board() {
           console.warn('Supabase read error, falling back to localStorage:', error.message || error.code || error);
           const raw = localStorage.getItem(STORAGE_KEY);
           if (raw && mounted) {
-            setProjects(JSON.parse(raw));
+            setProjects(normalizeLocalProjects(raw));
             return;
           }
         } else if (data) {
           if (!mounted) return;
-          const mapped: Project[] = data.map((r: any) => ({
-            id: r.id,
-            name: r.name,
-            desc: r.description || '',
-            tags: r.tags || [],
-            status: r.status,
-            date: (r.created_at || '').slice(0,10)
-          }));
+          const mapped: Project[] = data.map(mapProject);
           setProjects(mapped);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
           return;
@@ -60,11 +92,12 @@ export default function Board() {
 
         // fallback seed
         const seed: Project[] = [
-          { id: uid(), name: 'Portfolio Website', desc: 'Personal portfolio showcasing work and skills', tags: ['Next.js','Tailwind'], status: 3, date: '2024-12-01' },
-          { id: uid(), name: 'Task Manager API', desc: 'REST API for task management with auth', tags: ['Node.js','Postgres'], status: 1, date: '2025-01-15' },
-          { id: uid(), name: 'E-commerce Dashboard', desc: 'Admin dashboard for online store analytics', tags: ['React','Recharts'], status: 1, date: '2025-02-10' },
-          { id: uid(), name: 'Mobile Budget App', desc: 'React Native budget tracker with charts', tags: ['React Native','Expo'], status: 0, date: '2025-03-01' },
-          { id: uid(), name: 'AI Chat Interface', desc: 'Claude-powered conversational UI', tags: ['Next.js','Supabase'], status: 2, date: '2025-02-20' }
+          { id: uid(), name: 'Portfolio Website', desc: 'Personal portfolio showcasing work and skills', tags: ['Next.js','Tailwind'], status: 3, date: '2024-12-01', projectType: 'software' },
+          { id: uid(), name: 'Task Manager API', desc: 'REST API for task management with auth', tags: ['Node.js','Postgres'], status: 1, date: '2025-01-15', projectType: 'software' },
+          { id: uid(), name: 'E-commerce Dashboard', desc: 'Admin dashboard for online store analytics', tags: ['React','Recharts'], status: 1, date: '2025-02-10', projectType: 'software' },
+          { id: uid(), name: 'Mobile Budget App', desc: 'React Native budget tracker with charts', tags: ['React Native','Expo'], status: 0, date: '2025-03-01', projectType: 'software' },
+          { id: uid(), name: 'Agency Partnership Plan', desc: 'Quarterly business growth roadmap for agency partnerships', tags: ['Sales','Planning'], status: 0, date: '2025-02-05', projectType: 'business' },
+          { id: uid(), name: 'AI Chat Interface', desc: 'Claude-powered conversational UI', tags: ['Next.js','Supabase'], status: 2, date: '2025-02-20', projectType: 'software' }
         ];
         if (!mounted) return;
         setProjects(seed);
@@ -72,7 +105,7 @@ export default function Board() {
       } catch (err) {
         console.error('Unexpected error loading projects:', err);
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw && mounted) setProjects(JSON.parse(raw));
+        if (raw && mounted) setProjects(normalizeLocalProjects(raw));
       }
     }
 
@@ -96,10 +129,10 @@ export default function Board() {
         if (ev === 'INSERT') {
           setProjects((p) => {
             if (p.find(x => x.id === row.id)) return p;
-            return [...p, { id: row.id, name: row.name, desc: row.description || '', tags: row.tags || [], status: row.status, date: (row.created_at||'').slice(0,10) }];
+            return [...p, mapProject(row)];
           });
         } else if (ev === 'UPDATE') {
-          setProjects((p) => p.map(x => x.id === row.id ? ({ id: row.id, name: row.name, desc: row.description || '', tags: row.tags || [], status: row.status, date: (row.created_at||'').slice(0,10) }) : x));
+          setProjects((p) => p.map(x => x.id === row.id ? mapProject(row) : x));
         } else if (ev === 'DELETE') {
           setProjects((p) => p.filter(x => x.id !== row.id));
         }
@@ -167,7 +200,7 @@ export default function Board() {
     }
   }
 
-  async function saveProject(payload: { name: string; desc?: string; tags?: string[]; status: number }) {
+  async function saveProject(payload: { name: string; desc?: string; tags?: string[]; status: number; projectType: ProjectType }) {
     try {
       if (editId) {
         const updates = {
@@ -175,13 +208,14 @@ export default function Board() {
           description: payload.desc || null,
           tags: payload.tags || [],
           status: payload.status,
+          project_type: payload.projectType,
           updated_at: new Date().toISOString()
         };
         const { data, error } = await supabase.from('projects').update(updates).eq('id', editId).eq('user_id', user.id).select();
         if (error) throw error;
         if (data && data.length > 0) {
           const row = data[0];
-          setProjects((p) => p.map(x => x.id === row.id ? ({ id: row.id, name: row.name, desc: row.description || '', tags: row.tags || [], status: row.status, date: (row.created_at||'').slice(0,10) }) : x));
+          setProjects((p) => p.map(x => x.id === row.id ? mapProject(row) : x));
         }
       } else {
         const toInsert = {
@@ -189,13 +223,14 @@ export default function Board() {
           description: payload.desc || null,
           user_id: user.id,
           tags: payload.tags || [],
-          status: payload.status
+          status: payload.status,
+          project_type: payload.projectType
         };
         const { data, error } = await supabase.from('projects').insert([toInsert]).select();
         if (error) throw error;
         if (data && data.length > 0) {
           const row = data[0];
-          setProjects((p) => [...p, { id: row.id, name: row.name, desc: row.description || '', tags: row.tags || [], status: row.status, date: (row.created_at||'').slice(0,10) }]);
+          setProjects((p) => [...p, mapProject(row)]);
         }
       }
     } catch (err) {
@@ -235,7 +270,7 @@ export default function Board() {
         }
         if (data && (data as any).length > 0) {
           const row = (data as any)[0];
-          setProjects((p) => p.map(x => x.id === row.id ? ({ id: row.id, name: row.name, desc: row.description || '', tags: row.tags || [], status: row.status, date: (row.created_at||'').slice(0,10) }) : x));
+          setProjects((p) => p.map(x => x.id === row.id ? mapProject(row) : x));
           try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch (e) {}
         }
       } catch (err) {
@@ -244,10 +279,15 @@ export default function Board() {
     })();
   }
 
-  const counts = new Array(COLS.length).fill(0);
-  projects.forEach(p => counts[p.status] = (counts[p.status] || 0) + 1);
-  const total = projects.length;
-  const livePct = total ? Math.round(((counts[3]||0)/total)*100) : 0;
+  const activeColumns = getColumnsForType(selectedType);
+  const filteredProjects = projects
+    .filter((project) => project.projectType === selectedType)
+    .map((project) => ({ ...project, status: normalizeStatusForType(project.status, selectedType) }));
+  const counts = new Array(activeColumns.length).fill(0);
+  filteredProjects.forEach(p => counts[p.status] = (counts[p.status] || 0) + 1);
+  const total = filteredProjects.length;
+  const progressColumnIndex = selectedType === 'business' ? 2 : 3;
+  const livePct = total ? Math.round(((counts[progressColumnIndex]||0)/total)*100) : 0;
   // If still checking session, show a simple loading state
   if (sessionLoading) {
     return (
@@ -289,7 +329,25 @@ export default function Board() {
           <div className="logo-text">Project<span>Board</span></div>
         </div>
         <div className="header-right">
-          <div style={{display:'flex', alignItems:'center', gap:8}}>
+          <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', justifyContent:'flex-end'}}>
+            <div className="project-type-toggle" role="tablist" aria-label="Project type filter">
+              <button
+                type="button"
+                className={`project-type-toggle-btn ${selectedType === 'software' ? 'active' : ''}`}
+                onClick={() => setSelectedType('software')}
+                aria-pressed={selectedType === 'software'}
+              >
+                Software
+              </button>
+              <button
+                type="button"
+                className={`project-type-toggle-btn ${selectedType === 'business' ? 'active' : ''}`}
+                onClick={() => setSelectedType('business')}
+                aria-pressed={selectedType === 'business'}
+              >
+                Business
+              </button>
+            </div>
             <ThemeToggle />
             <div className="pill" id="date-pill">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
           </div>
@@ -318,17 +376,17 @@ export default function Board() {
             <div className="stat-label"><span className="stat-dot" style={{background:'var(--text)'}}></span>Total</div>
             <div className="stat-value">{total}</div>
           </div>
-          {COLS.map((c, i) => (
+          {activeColumns.map((c, i) => (
             <div key={i} className="stat-item">
               <div className="stat-label"><span className="stat-dot" style={{background:c.color}}></span>{c.label}</div>
               <div className="stat-value">{counts[i]||0}</div>
-              {i===3 && <div className="progress-bar"><div className="progress-fill" style={{width:`${livePct}%`}}></div></div>}
+              {i===progressColumnIndex && <div className="progress-bar"><div className="progress-fill" style={{width:`${livePct}%`}}></div></div>}
             </div>
           ))}
         </div>
 
         <div className="board-header">
-          <div className="board-title">All Projects</div>
+          <div className="board-title">{selectedType === 'software' ? 'Software Projects' : 'Business Projects'}</div>
           <div className="view-toggle">
             <button className="view-btn active" title="Kanban">⊞</button>
             <button className="view-btn" title="List">☰</button>
@@ -336,8 +394,8 @@ export default function Board() {
         </div>
 
         <div className="board" id="board">
-          {COLS.map((col, idx) => {
-            const cards = projects.filter(p => p.status === idx);
+          {activeColumns.map((col, idx) => {
+            const cards = filteredProjects.filter(p => p.status === idx);
             return (
               <div key={idx} className={`column col-${idx}`}>
                 <div className="col-header">
@@ -370,7 +428,7 @@ export default function Board() {
             <div className="modal-title">{editId ? 'Edit Project' : 'New Project'}</div>
             <button className="modal-close" onClick={closeModal}>✕</button>
           </div>
-          <ProjectForm key={`${editId ?? 'new'}-${formResetKey}`} projects={projects} editId={editId} onCancel={closeModal} onSave={saveProject} />
+          <ProjectForm key={`${editId ?? 'new'}-${formResetKey}`} projects={projects} editId={editId} selectedType={selectedType} onCancel={closeModal} onSave={saveProject} />
         </div>
       </div>
       {/* Auth modal */}
@@ -379,22 +437,34 @@ export default function Board() {
   );
 }
 
-function ProjectForm({ projects, editId, onCancel, onSave }: { projects: Project[]; editId: string | null; onCancel: () => void; onSave: (p: { name: string; desc?: string; tags?: string[]; status: number }) => void; }) {
+function ProjectForm({ projects, editId, selectedType, onCancel, onSave }: { projects: Project[]; editId: string | null; selectedType: ProjectType; onCancel: () => void; onSave: (p: { name: string; desc?: string; tags?: string[]; status: number; projectType: ProjectType }) => void; }) {
   const editing = editId ? projects.find(p => p.id === editId) : null;
   const [name, setName] = useState(editing?.name || '');
   const [desc, setDesc] = useState(editing?.desc || '');
   const [tagsRaw, setTagsRaw] = useState((editing?.tags || []).join(', '));
-  const [status, setStatus] = useState<number>(editing?.status ?? 0);
+  const initialProjectType = editing?.projectType ?? selectedType;
+  const [status, setStatus] = useState<number>(normalizeStatusForType(editing?.status ?? 0, initialProjectType));
+  const [projectType, setProjectType] = useState<ProjectType>(initialProjectType);
+  const statusOptions = getColumnsForType(projectType);
 
   useEffect(() => {
-    setName(editing?.name || ''); setDesc(editing?.desc || ''); setTagsRaw((editing?.tags || []).join(', ')); setStatus(editing?.status ?? 0);
-  }, [editId]);
+    const nextProjectType = editing?.projectType ?? selectedType;
+    setName(editing?.name || '');
+    setDesc(editing?.desc || '');
+    setTagsRaw((editing?.tags || []).join(', '));
+    setStatus(normalizeStatusForType(editing?.status ?? 0, nextProjectType));
+    setProjectType(nextProjectType);
+  }, [editId, editing, selectedType]);
+
+  useEffect(() => {
+    setStatus((currentStatus) => normalizeStatusForType(currentStatus, projectType));
+  }, [projectType]);
 
   function submit(e?: React.FormEvent) {
     e?.preventDefault();
     if (!name.trim()) return;
     const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
-    onSave({ name: name.trim(), desc: desc.trim(), tags, status });
+    onSave({ name: name.trim(), desc: desc.trim(), tags, status, projectType });
   }
 
   return (
@@ -412,13 +482,18 @@ function ProjectForm({ projects, editId, onCancel, onSave }: { projects: Project
         <input className="form-input" value={tagsRaw} onChange={(e) => setTagsRaw(e.target.value)} placeholder="e.g. Next.js, Supabase, UI" />
       </div>
       <div className="form-group">
+        <label className="form-label">Project Type</label>
+        <select className="form-select" value={projectType} onChange={(e) => setProjectType(e.target.value as ProjectType)}>
+          <option value="software">Software Project</option>
+          <option value="business">Business Project</option>
+        </select>
+      </div>
+      <div className="form-group">
         <label className="form-label">Status</label>
         <select className="form-select" value={status} onChange={(e) => setStatus(Number(e.target.value))}>
-          <option value={0}>🔴 Not Started</option>
-          <option value={1}>🟡 In Development</option>
-          <option value={2}>🔵 Uploading / Deploying</option>
-          <option value={3}>🟢 Live / Hosted</option>
-          <option value={4}>🗑️ Bin</option>
+          {statusOptions.map((option, index) => (
+            <option key={`${projectType}-${index}`} value={index}>{option.label}</option>
+          ))}
         </select>
       </div>
       <div className="modal-footer">

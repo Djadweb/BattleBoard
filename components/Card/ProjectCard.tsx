@@ -7,13 +7,17 @@ export type Project = {
   tags?: string[];
   status: number;
   date: string;
+  projectType: 'software' | 'business';
 };
 
 export default function ProjectCard({ project, onEdit, onDelete, dragging }: { project: Project; onEdit: (id: string) => void; onDelete: (id: string) => void; dragging?: boolean; }) {
   return (
     <article className={`card ${dragging ? 'dragging' : ''}`} draggable={true} data-id={project.id}>
       <div className="card-top">
-        <div className="card-title">{project.name}</div>
+        <div>
+          <div className="card-title">{project.name}</div>
+          <div className={`project-type-badge ${project.projectType}`}>{project.projectType === 'software' ? 'Software' : 'Business'}</div>
+        </div>
         <button className="card-menu-btn" onClick={() => onEdit(project.id)} title="Edit">✎</button>
       </div>
       {project.desc ? <div className="card-desc">{project.desc}</div> : null}

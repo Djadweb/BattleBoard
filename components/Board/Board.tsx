@@ -329,7 +329,7 @@ export default function Board() {
           <div className="logo-text">Project<span>Board</span></div>
         </div>
         <div className="header-right">
-          <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', justifyContent:'flex-end'}}>
+          <div className="header-controls">
             <div className="project-type-toggle" role="tablist" aria-label="Project type filter">
               <button
                 type="button"
@@ -352,15 +352,15 @@ export default function Board() {
             <div className="pill" id="date-pill">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</div>
           </div>
           {user ? (
-            <div style={{display:'flex', gap:8, alignItems:'center'}}>
-              <div className="pill">{user.email}</div>
+            <div className="session-controls">
+              <div className="pill email-pill" title={user.email}>{user.email}</div>
               <button className="btn-primary" onClick={() => openModal()}>
                 <span className="btn-icon">+</span> New Project
               </button>
               <button className="btn-secondary" onClick={async () => { await supabase.auth.signOut(); setUser(null); }}>Sign out</button>
             </div>
           ) : (
-            <div style={{display:'flex', gap:8}}>
+            <div className="session-controls">
               <button className="btn-secondary" onClick={() => { setAuthInitialMode('signin'); setAuthOpen(true); }}>Sign in</button>
               <button className="btn-primary" onClick={() => openModal()}>
                 <span className="btn-icon">+</span> New Project
@@ -503,4 +503,3 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave }: { pro
     </form>
   );
 }
-

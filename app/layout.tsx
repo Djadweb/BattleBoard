@@ -7,6 +7,7 @@ import PWARegister from '../components/PWA/PWARegister';
 export const metadata: Metadata = {
   title: 'Project Board',
   description: 'Visual project tracker dashboard',
+  applicationName: 'Project Board',
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [
@@ -22,6 +23,9 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'Project Board'
+  },
+  other: {
+    'mobile-web-app-capable': 'yes'
   }
 };
 

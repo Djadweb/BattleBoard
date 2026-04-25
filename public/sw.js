@@ -53,7 +53,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/icons/') || APP_SHELL.includes(url.pathname)) {
+  if (url.pathname.startsWith('/_next/')) return;
+
+  if (url.pathname.startsWith('/icons/') || APP_SHELL.includes(url.pathname)) {
     event.respondWith(
       caches.match(request).then((cached) => {
         const networkFetch = fetch(request)

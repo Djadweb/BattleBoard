@@ -73,12 +73,12 @@ export default function AuthModal({ open, onClose, initialMode = 'signin' }: Pro
         <form onSubmit={submit}>
           <div className="form-group">
             <label className="form-label">Email</label>
-            <input className="form-input" value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+            <input className="form-input" value={email} onChange={(e) => setEmail(e.target.value)} type="email" required autoComplete="email" />
           </div>
 
           <div className="form-group">
             <label className="form-label">Password</label>
-            <input className="form-input" value={password} onChange={(e) => setPassword(e.target.value)} type="password" required minLength={6} />
+            <input className="form-input" value={password} onChange={(e) => setPassword(e.target.value)} type="password" required minLength={6} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} />
           </div>
 
           {info ? <div className="empty" style={{border:'none', background:'transparent', color:'var(--muted)', marginBottom:12}}>{info}</div> : null}

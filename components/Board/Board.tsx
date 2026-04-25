@@ -80,6 +80,7 @@ export default function Board() {
   const [modalOpen, setModalOpen] = useState(false);
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [detailsEditing, setDetailsEditing] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [authInitialMode, setAuthInitialMode] = useState<'signin' | 'signup'>('signin');
   const [user, setUser] = useState<any | null>(null);
@@ -169,6 +170,10 @@ export default function Board() {
   // auth session handling
   useEffect(() => {
     let mounted = true;
+    const sessionTimeout = window.setTimeout(() => {
+      if (mounted) setSessionLoading(false);
+    }, 1200);
+
     (async () => {
       try {
         const { data } = await supabase.auth.getSession();
@@ -177,7 +182,10 @@ export default function Board() {
       } catch (err) {
         // ignore
       } finally {
-        if (mounted) setSessionLoading(false);
+        if (mounted) {
+          setSessionLoading(false);
+          window.clearTimeout(sessionTimeout);
+        }
       }
     })();
 
@@ -186,7 +194,11 @@ export default function Board() {
       setSessionLoading(false);
     });
 
-    return () => { mounted = false; sub.subscription.unsubscribe(); };
+    return () => {
+      mounted = false;
+      window.clearTimeout(sessionTimeout);
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   // auto-open auth modal when unauthenticated
@@ -200,16 +212,30 @@ export default function Board() {
       setEditId(null);
       setFormResetKey(k => k + 1);
     }
+    setMobileMenuOpen(false);
     setModalOpen(true);
   }
 
   function closeModal() { setModalOpen(false); setEditId(null); }
   function closeDetailsModal() { setDetailsId(null); setDetailsEditing(false); }
-  function openDetailsModal(id: string) { setDetailsId(id); setDetailsEditing(false); }
+  function openDetailsModal(id: string) {
+    setMobileMenuOpen(false);
+    setDetailsId(id);
+    setDetailsEditing(false);
+  }
 
   function editProject(id: string) {
+    setMobileMenuOpen(false);
     setEditId(id);
     setModalOpen(true);
+  }
+
+  function openMobileMenu() {
+    setMobileMenuOpen(true);
+  }
+
+  function closeMobileMenu() {
+    setMobileMenuOpen(false);
   }
 
   async function updateProjectTodos(projectId: string, todos: TodoItem[]) {
@@ -361,8 +387,22 @@ export default function Board() {
   // If still checking session, show a simple loading state
   if (sessionLoading) {
     return (
-      <div className="app" style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh'}}>
-        <div className="empty">Checking authentication...</div>
+      <div className="app app-loading">
+        <div className="loading-shell">
+          <div className="logo">
+            <div className="logo-mark">PB</div>
+            <div className="logo-text">Project<span>Board</span></div>
+          </div>
+          <div className="loading-card">
+            <div className="loading-title">Opening your workspace</div>
+            <div className="loading-subtitle">Checking your session and restoring your boards.</div>
+            <div className="loading-skeleton">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -490,6 +530,87 @@ export default function Board() {
           })}
         </div>
       </main>
+
+      <nav className="mobile-app-bar" aria-label="Mobile navigation">
+        <button
+          type="button"
+          className={`mobile-app-bar-btn ${selectedType === 'software' ? 'active' : ''}`}
+          onClick={() => {
+            setMobileMenuOpen(false);
+            setSelectedType('software');
+          }}
+          aria-pressed={selectedType === 'software'}
+        >
+          Software
+        </button>
+        <button
+          type="button"
+          className={`mobile-app-bar-btn ${selectedType === 'business' ? 'active' : ''}`}
+          onClick={() => {
+            setMobileMenuOpen(false);
+            setSelectedType('business');
+          }}
+          aria-pressed={selectedType === 'business'}
+        >
+          Business
+        </button>
+        <button
+          type="button"
+          className="mobile-app-bar-btn mobile-app-bar-primary"
+          onClick={() => openModal()}
+        >
+          <span className="mobile-app-bar-icon">＋</span>
+          New
+        </button>
+        <button
+          type="button"
+          className="mobile-app-bar-btn"
+          onClick={openMobileMenu}
+          aria-expanded={mobileMenuOpen}
+          aria-haspopup="dialog"
+        >
+          <span className="mobile-app-bar-icon">☰</span>
+          Menu
+        </button>
+      </nav>
+
+      <div className={`overlay mobile-menu-overlay ${mobileMenuOpen ? 'open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) closeMobileMenu(); }}>
+        <div className="modal mobile-menu-modal" role="dialog" aria-modal="true" aria-labelledby="mobile-menu-title">
+          <div className="modal-header">
+            <div>
+              <div className="modal-title" id="mobile-menu-title">Menu</div>
+              <div className="details-subtitle">ProjectBoard mobile actions</div>
+            </div>
+            <button className="modal-close" onClick={closeMobileMenu}>✕</button>
+          </div>
+          <div className="mobile-menu-stack">
+            <div className="mobile-menu-row">
+              <div>
+                <div className="mobile-menu-label">Account</div>
+                <div className="mobile-menu-value">{user.email}</div>
+              </div>
+            </div>
+            <div className="mobile-menu-row mobile-menu-theme">
+              <div>
+                <div className="mobile-menu-label">Theme</div>
+                <div className="mobile-menu-value">Switch between dark and light</div>
+              </div>
+              <ThemeToggle />
+            </div>
+            <button
+              type="button"
+              className="btn-secondary mobile-menu-action"
+              onClick={async () => {
+                closeMobileMenu();
+                await supabase.auth.signOut();
+                setUser(null);
+              }}
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Modal (inline form) */}
       <div className={`overlay ${modalOpen ? 'open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
@@ -671,6 +792,7 @@ function TodoListEditor({
   const [draft, setDraft] = useState('');
   const normalizedTodos = normalizeTodos(todos);
   const completedCount = normalizedTodos.filter((todo) => todo.completed).length;
+  const completionPct = normalizedTodos.length ? Math.round((completedCount / normalizedTodos.length) * 100) : 0;
 
   function addTodo() {
     const text = draft.trim();
@@ -694,11 +816,19 @@ function TodoListEditor({
   return (
     <div className="todo-editor">
       <div className="todo-editor-header">
-        <div>
+        <div className="todo-editor-copy">
           <div className="form-label todo-label">{title}</div>
           {helperText ? <div className="todo-helper">{helperText}</div> : null}
         </div>
-        <div className="todo-summary">{completedCount}/{normalizedTodos.length} done</div>
+        <div className="todo-summary">
+          <span className="todo-summary-count">{completedCount}</span>
+          <span className="todo-summary-sep">/</span>
+          <span>{normalizedTodos.length}</span>
+          <span className="todo-summary-label">done</span>
+        </div>
+      </div>
+      <div className="todo-progress" aria-hidden="true">
+        <div className="todo-progress-fill" style={{width:`${completionPct}%`}}></div>
       </div>
       <div className="todo-add-row">
         <input
@@ -728,12 +858,15 @@ function TodoListEditor({
               >
                 {todo.completed ? '✓' : ''}
               </button>
-              <input
-                className={`todo-input ${todo.completed ? 'checked' : ''}`}
-                value={todo.text}
-                onChange={(event) => updateTodo(todo.id, event.target.value)}
-                placeholder="Todo text"
-              />
+              <div className="todo-item-main">
+                <input
+                  className={`todo-input ${todo.completed ? 'checked' : ''}`}
+                  value={todo.text}
+                  onChange={(event) => updateTodo(todo.id, event.target.value)}
+                  placeholder="Todo text"
+                />
+                <div className="todo-item-status">{todo.completed ? 'Completed' : 'In progress'}</div>
+              </div>
               <button type="button" className="todo-delete" onClick={() => deleteTodo(todo.id)} aria-label={`Delete "${todo.text}"`}>
                 Delete
               </button>

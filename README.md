@@ -23,6 +23,7 @@ Project Board is a visual project-tracking dashboard for personal software proje
 - **CRUD via modal:** Add, edit, and delete projects using a modal form.
 - **Persistent storage:** All data stored in Supabase (Postgres).
 - **Realtime updates:** Clients receive updates via Supabase realtime subscriptions.
+- **Export:** Download every project in the database as CSV, SQL, SQLite (`.db`), or JSON.
 
 ## Getting Started
 
@@ -85,6 +86,35 @@ yarn dev
 
 Open http://localhost:3000 to view the app.
 
+## Exporting your projects
+
+Click **Export** in the header (or **Menu → Export projects** on mobile). The dialog
+reads every project for the signed-in user straight from the database — both Software
+and Business, not just the board you are currently viewing — and offers four formats:
+
+| Format | File | Notes |
+|--------|------|-------|
+| CSV | `.csv` | One row per project, with todos packed into the last column. Opens in any spreadsheet. |
+| SQL | `.sql` | A `create table` plus batched `insert` statements. Replayable with `psql` or the Supabase SQL editor. |
+| SQLite | `.db` | A real SQLite database with `projects` and `todos` tables. Open it in DB Browser for SQLite or any other SQLite tool. |
+| JSON | `.json` | Full-fidelity backup including every todo. |
+
+If the database read fails (offline, or an RLS policy blocks it), the dialog says so
+and exports whatever the board has already loaded.
+
+The `.db` file is generated in the browser with no third-party library: `lib/sqlite.ts`
+writes the SQLite file format directly, including multi-page b-trees and overflow
+pages for large records.
+
+### Verifying the exporters
+
+Both suites run against the real SQLite and CSV implementations via `python3`:
+
+```bash
+node --experimental-strip-types --import ./scripts/register-ts.mjs scripts/export-sqlite-test.ts
+node --experimental-strip-types --import ./scripts/register-ts.mjs scripts/export-test.ts
+```
+
 ## Project Structure (App Router)
 
 Typical layout for a Next.js App Router project used by Project Board:
@@ -102,6 +132,10 @@ components/
 lib/
   supabaseClient.ts     # Supabase client wrapper
   db.ts                 # Optional DB helpers
+  projectColumns.ts     # Board column definitions and status helpers
+  exporters.ts          # CSV / SQL / JSON / SQLite serialisers
+  sqlite.ts             # Minimal SQLite file writer (no dependencies)
+  download.ts           # Browser download helper
 public/
   screenshot.png        # Placeholder screenshot
 styles/

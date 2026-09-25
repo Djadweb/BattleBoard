@@ -717,3 +717,51 @@ body { transition: background 0.25s ease, color 0.25s ease }
   }
   .auth-toggle { white-space:normal; text-align:center }
 }
+
+/* --- Export dialog --- */
+.export-modal{ max-width:560px }
+
+.export-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.75rem }
+
+.export-option{
+  display:flex;
+  flex-direction:column;
+  gap:0.35rem;
+  text-align:left;
+  background:var(--s2);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:0.9rem 1rem;
+  cursor:pointer;
+  font-family:'Archivo',sans-serif;
+  transition:border-color 0.15s, background 0.15s, transform 0.1s;
+}
+.export-option:hover:not(:disabled){ border-color:var(--amber); background:var(--s1) }
+.export-option:active:not(:disabled){ transform:translateY(1px) }
+.export-option:disabled{ opacity:0.45; cursor:not-allowed }
+
+.export-option-head{ display:flex; align-items:baseline; gap:0.4rem }
+.export-option-label{ color:var(--text); font-size:0.92rem; font-weight:700 }
+.export-option-ext{ color:var(--amber); font-family:'JetBrains Mono',monospace; font-size:0.72rem }
+.export-option-desc{ color:var(--muted); font-size:0.74rem; line-height:1.4 }
+
+.export-warning{
+  background:rgba(245,166,35,0.1);
+  border:1px solid rgba(245,166,35,0.35);
+  border-radius:10px;
+  padding:0.7rem 0.85rem;
+  color:var(--amber);
+  font-size:0.76rem;
+  line-height:1.45;
+  margin-bottom:1rem;
+}
+
+.export-empty{ color:var(--muted); font-size:0.8rem; text-align:center; padding:1.1rem 0 0.2rem }
+
+.export-status{ margin-top:1rem; font-size:0.76rem; line-height:1.45; word-break:break-all }
+.export-status.ok{ color:var(--green) }
+.export-status.error{ color:var(--red) }
+
+@media (max-width:560px){
+  .export-grid{ grid-template-columns:1fr }
+}

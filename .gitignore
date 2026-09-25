@@ -5,3 +5,6 @@ node_modules
 .DS_Store
 .vscode
 .idea
+
+# export test artifacts
+scripts/.export-test

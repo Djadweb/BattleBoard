@@ -2,29 +2,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ThemeToggle from '../ThemeToggle/ThemeToggle';
 import AuthModal from '../Auth/AuthModal';
+import ExportModal from '../Export/ExportModal';
 import supabase from '../../lib/supabaseClient';
 import ProjectCard, { Project, TodoItem } from '../Card/ProjectCard';
-
-const SOFTWARE_COLS = [
-  { label: 'Not Started', color: 'var(--col1)' },
-  { label: 'In Development', color: 'var(--col2)' },
-  { label: 'Uploading / Deploying', color: 'var(--col3)' },
-  { label: 'Live / Hosted', color: 'var(--col4)' },
-  { label: 'Marketing', color: 'var(--col5)' },
-  { label: '🗑️ Bin', color: 'var(--col6)' }
-];
-
-const BUSINESS_COLS = [
-  { label: 'Not Started', color: 'var(--col1)' },
-  { label: 'In Progress', color: 'var(--col2)' },
-  { label: 'Cashflow', color: 'var(--col4)' },
-  { label: 'Marketing', color: 'var(--col5)' },
-  { label: '🗑️ Bin', color: 'var(--col6)' }
-];
+import { getColumnsForType, normalizeStatusForType, type ProjectType } from '../../lib/projectColumns';
 
 const STORAGE_KEY = 'pb_projects';
 
-type ProjectType = 'software' | 'business';
 type ProjectPayload = { name: string; desc?: string; tags?: string[]; todos: TodoItem[]; status: number; projectType: ProjectType };
 
 function normalizeTodos(input: unknown): TodoItem[] {
@@ -62,16 +46,6 @@ function normalizeLocalProjects(raw: string): Project[] {
   }));
 }
 
-function getColumnsForType(projectType: ProjectType) {
-  return projectType === 'business' ? BUSINESS_COLS : SOFTWARE_COLS;
-}
-
-function normalizeStatusForType(status: number, projectType: ProjectType) {
-  const maxStatus = getColumnsForType(projectType).length - 1;
-  if (Number.isNaN(status) || status < 0) return 0;
-  return Math.min(status, maxStatus);
-}
-
 function uid() { return Math.random().toString(36).slice(2,10); }
 
 export default function Board() {
@@ -87,6 +61,7 @@ export default function Board() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [editId, setEditId] = useState<string | null>(null);
   const [formResetKey, setFormResetKey] = useState(0);
+  const [exportOpen, setExportOpen] = useState(false);
   const dragIdRef = useRef<string | null>(null);
 
   // Load projects only when user is authenticated
@@ -467,6 +442,9 @@ export default function Board() {
               <button className="btn-primary" onClick={() => openModal()}>
                 <span className="btn-icon">+</span> New Project
               </button>
+              <button className="btn-secondary" onClick={() => { setMobileMenuOpen(false); setExportOpen(true); }} title="Export all projects">
+                <span className="btn-icon">↓</span> Export
+              </button>
               <button className="btn-secondary" onClick={async () => { await supabase.auth.signOut(); setUser(null); }}>Sign out</button>
             </div>
           ) : (
@@ -600,6 +578,13 @@ export default function Board() {
             <button
               type="button"
               className="btn-secondary mobile-menu-action"
+              onClick={() => { setMobileMenuOpen(false); setExportOpen(true); }}
+            >
+              Export projects
+            </button>
+            <button
+              type="button"
+              className="btn-secondary mobile-menu-action"
               onClick={async () => {
                 closeMobileMenu();
                 await supabase.auth.signOut();
@@ -689,6 +674,12 @@ export default function Board() {
           ) : null}
         </div>
       </div>
+      <ExportModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        fallbackProjects={projects}
+        userId={user?.id ?? null}
+      />
       {/* Auth modal */}
       {authOpen ? <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} initialMode={authInitialMode} /> : null}
     </div>

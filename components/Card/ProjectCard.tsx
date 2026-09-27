@@ -13,6 +13,7 @@ export type Project = {
   tags?: string[];
   todos: TodoItem[];
   status: number;
+  sortOrder: number;
   date: string;
   projectType: 'software' | 'business';
 };

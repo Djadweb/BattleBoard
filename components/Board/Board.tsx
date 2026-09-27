@@ -9,7 +9,7 @@ import { getColumnsForType, normalizeStatusForType, type ProjectType } from '../
 
 const STORAGE_KEY = 'pb_projects';
 
-type ProjectPayload = { name: string; desc?: string; tags?: string[]; todos: TodoItem[]; status: number; projectType: ProjectType };
+type ProjectPayload = { name: string; desc?: string; tags?: string[]; todos: TodoItem[]; status: number; sortOrder?: number; projectType: ProjectType };
 
 function normalizeTodos(input: unknown): TodoItem[] {
   if (!Array.isArray(input)) return [];
@@ -33,6 +33,7 @@ function mapProject(row: any, fallback?: Partial<Project> | null): Project {
     tags: row.tags || [],
     todos: hasTodos ? normalizeTodos(row.todos) : normalizeTodos(fallback?.todos),
     status: row.status,
+    sortOrder: typeof row.sort_order === 'number' ? row.sort_order : (fallback?.sortOrder ?? 0),
     date: (row.created_at || '').slice(0,10),
     projectType: row.project_type === 'business' ? 'business' : 'software'
   };
@@ -42,6 +43,7 @@ function normalizeLocalProjects(raw: string): Project[] {
   return JSON.parse(raw).map((project: any) => ({
     ...project,
     todos: normalizeTodos(project.todos),
+    sortOrder: typeof project.sortOrder === 'number' ? project.sortOrder : 0,
     projectType: project.projectType === 'business' ? 'business' : 'software'
   }));
 }
@@ -63,6 +65,8 @@ export default function Board() {
   const [formResetKey, setFormResetKey] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
   const dragIdRef = useRef<string | null>(null);
+  const dropTargetRef = useRef<{ colIdx: number; cardIdx: number; position: 'before' | 'after' } | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   // Load projects only when user is authenticated
   useEffect(() => {
@@ -71,7 +75,7 @@ export default function Board() {
 
     async function load() {
       try {
-        const { data, error } = await supabase.from('projects').select('*').eq('user_id', user.id).order('created_at', { ascending: true });
+        const { data, error } = await supabase.from('projects').select('*').eq('user_id', user.id).order('status', { ascending: true }).order('sort_order', { ascending: true });
         if (error) {
           console.warn('Supabase read error, falling back to localStorage:', error.message || error.code || error);
           const raw = localStorage.getItem(STORAGE_KEY);
@@ -92,12 +96,12 @@ export default function Board() {
 
         // fallback seed
         const seed: Project[] = [
-          { id: uid(), name: 'Portfolio Website', desc: 'Personal portfolio showcasing work and skills', tags: ['Next.js','Tailwind'], todos: [], status: 3, date: '2024-12-01', projectType: 'software' },
-          { id: uid(), name: 'Task Manager API', desc: 'REST API for task management with auth', tags: ['Node.js','Postgres'], todos: [], status: 1, date: '2025-01-15', projectType: 'software' },
-          { id: uid(), name: 'E-commerce Dashboard', desc: 'Admin dashboard for online store analytics', tags: ['React','Recharts'], todos: [], status: 1, date: '2025-02-10', projectType: 'software' },
-          { id: uid(), name: 'Mobile Budget App', desc: 'React Native budget tracker with charts', tags: ['React Native','Expo'], todos: [], status: 0, date: '2025-03-01', projectType: 'software' },
-          { id: uid(), name: 'Agency Partnership Plan', desc: 'Quarterly business growth roadmap for agency partnerships', tags: ['Sales','Planning'], todos: [], status: 0, date: '2025-02-05', projectType: 'business' },
-          { id: uid(), name: 'AI Chat Interface', desc: 'Claude-powered conversational UI', tags: ['Next.js','Supabase'], todos: [], status: 2, date: '2025-02-20', projectType: 'software' }
+          { id: uid(), name: 'Portfolio Website', desc: 'Personal portfolio showcasing work and skills', tags: ['Next.js','Tailwind'], todos: [], status: 3, sortOrder: 0, date: '2024-12-01', projectType: 'software' },
+          { id: uid(), name: 'Task Manager API', desc: 'REST API for task management with auth', tags: ['Node.js','Postgres'], todos: [], status: 1, sortOrder: 0, date: '2025-01-15', projectType: 'software' },
+          { id: uid(), name: 'E-commerce Dashboard', desc: 'Admin dashboard for online store analytics', tags: ['React','Recharts'], todos: [], status: 1, sortOrder: 1, date: '2025-02-10', projectType: 'software' },
+          { id: uid(), name: 'Mobile Budget App', desc: 'React Native budget tracker with charts', tags: ['React Native','Expo'], todos: [], status: 0, sortOrder: 0, date: '2025-03-01', projectType: 'software' },
+          { id: uid(), name: 'Agency Partnership Plan', desc: 'Quarterly business growth roadmap for agency partnerships', tags: ['Sales','Planning'], todos: [], status: 0, sortOrder: 0, date: '2025-02-05', projectType: 'business' },
+          { id: uid(), name: 'AI Chat Interface', desc: 'Claude-powered conversational UI', tags: ['Next.js','Supabase'], todos: [], status: 2, sortOrder: 0, date: '2025-02-20', projectType: 'software' }
         ];
         if (!mounted) return;
         setProjects(seed);
@@ -263,6 +267,7 @@ export default function Board() {
           tags: payload.tags || [],
           todos: payload.todos,
           status: payload.status,
+          sort_order: payload.sortOrder ?? 0,
           project_type: payload.projectType,
           updated_at: new Date().toISOString()
         };
@@ -282,6 +287,7 @@ export default function Board() {
           tags: payload.tags || [],
           todos: payload.todos,
           status: payload.status,
+          sort_order: payload.sortOrder ?? 0,
           project_type: payload.projectType
         };
         const { data, error } = await supabase.from('projects').insert([toInsert]).select();
@@ -294,9 +300,9 @@ export default function Board() {
     } catch (err) {
       console.warn('Supabase save failed, falling back to local save:', err);
       if (targetId) {
-        setProjects((p) => p.map(x => x.id === targetId ? { ...x, ...payload } : x));
+        setProjects((p) => p.map(x => x.id === targetId ? { ...x, ...payload, sortOrder: payload.sortOrder ?? x.sortOrder } : x));
       } else {
-        setProjects((p) => [...p, { id: uid(), date: new Date().toISOString().slice(0,10), ...payload }]);
+        setProjects((p) => [...p, { id: uid(), date: new Date().toISOString().slice(0,10), sortOrder: payload.sortOrder ?? 0, ...payload }]);
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
     }
@@ -313,37 +319,109 @@ export default function Board() {
     setDetailsEditing(false);
   }
 
-  function onDragStart(id?: string) { dragIdRef.current = id || null; }
-  function onDragEnd() { dragIdRef.current = null; }
+  function onDragStart(id?: string) { dragIdRef.current = id || null; setDraggingId(id || null); }
+  function onDragEnd() { dragIdRef.current = null; dropTargetRef.current = null; setDraggingId(null); }
+
+  function onCardDragOver(e: React.DragEvent, colIdx: number, cardIdx: number) {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    const position = e.clientY < midY ? 'before' : 'after';
+    dropTargetRef.current = { colIdx, cardIdx, position };
+  }
 
   function onDropToColumn(idx: number) {
     const id = dragIdRef.current;
     if (!id) return;
-    // optimistic UI update
-    setProjects((p) => {
-      const next = p.map(x => x.id === id ? { ...x, status: idx } : x);
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch (e) {}
-      return next;
+    const target = dropTargetRef.current;
+    dropTargetRef.current = null;
+
+    setProjects((prev) => {
+      const dragged = prev.find(p => p.id === id);
+      if (!dragged) return prev;
+
+      // Remove dragged card from its current position
+      const withoutDragged = prev.filter(p => p.id !== id);
+
+      // Get cards in the target column (excluding dragged), sorted by sortOrder
+      const targetColCards = withoutDragged
+        .filter(p => p.status === idx)
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+
+      // Determine insertion index
+      let insertIdx: number;
+      if (target && target.colIdx === idx) {
+        const targetCard = targetColCards[target.cardIdx];
+        const realIdx = targetCard ? withoutDragged.indexOf(targetCard) : -1;
+        if (realIdx === -1) {
+          insertIdx = withoutDragged.length;
+        } else {
+          insertIdx = target.position === 'before' ? realIdx : realIdx + 1;
+        }
+      } else {
+        insertIdx = withoutDragged.length;
+      }
+
+      // Create the dragged card with updated status
+      const updatedDragged = { ...dragged, status: idx };
+
+      // Build new array
+      const next = [...withoutDragged];
+      next.splice(insertIdx, 0, updatedDragged);
+
+      // Reassign sortOrder for all cards in affected columns
+      const statusChanged = dragged.status !== idx;
+      const affectedColumns = statusChanged ? new Set([dragged.status, idx]) : new Set([idx]);
+      
+      const reordered = next.map(p => {
+        if (!affectedColumns.has(p.status)) return p;
+        return p;
+      });
+
+      // Reassign sortOrder sequentially within each affected column
+      for (const col of affectedColumns) {
+        let order = 0;
+        for (let i = 0; i < reordered.length; i++) {
+          if (reordered[i].status === col) {
+            reordered[i] = { ...reordered[i], sortOrder: order++ };
+          }
+        }
+      }
+
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(reordered)); } catch (e) {}
+      return reordered;
     });
 
-    // persist change to Supabase (best-effort). If the project is only local (no DB), this will fail and we keep local state.
+    // persist to Supabase (best-effort)
     (async () => {
       try {
-        const { data, error } = await supabase.from('projects').update({ status: idx, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', user.id).select();
-        if (error) {
-          // log and keep optimistic change
-          console.warn('Failed to persist status change to Supabase:', (error as any).message || error);
-          return;
-        }
-        if (data && (data as any).length > 0) {
-          const row = (data as any)[0];
-          setProjects((currentProjects) => currentProjects.map((project) => (
-            project.id === row.id ? mapProject(row, project) : project
-          )));
-          try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch (e) {}
+        const updates: { id: string; status: number; sort_order: number }[] = [];
+        // We need to compute the final state to persist
+        // Read current projects from state via a functional update pattern
+        setProjects((current) => {
+          const colCards = current.filter(p => p.status === idx).sort((a, b) => a.sortOrder - b.sortOrder);
+          // Also update the old column if status changed
+          const draggedCard = current.find(p => p.id === id);
+          if (draggedCard && draggedCard.status !== idx) {
+            const oldColCards = current.filter(p => p.status === draggedCard.status && p.id !== id).sort((a, b) => a.sortOrder - b.sortOrder);
+            oldColCards.forEach((p, i) => updates.push({ id: p.id, status: draggedCard.status, sort_order: i }));
+          }
+          colCards.forEach((p, i) => updates.push({ id: p.id, status: idx, sort_order: i }));
+          return current;
+        });
+
+        if (updates.length > 0) {
+          const { error } = await supabase.from('projects').upsert(
+            updates.map(u => ({ ...u, updated_at: new Date().toISOString() })),
+            { onConflict: 'id' }
+          );
+          if (error) {
+            console.warn('Failed to persist reorder to Supabase:', (error as any).message || error);
+          }
         }
       } catch (err) {
-        console.warn('Unexpected error updating project status:', err);
+        console.warn('Unexpected error persisting reorder:', err);
       }
     })();
   }
@@ -495,11 +573,13 @@ export default function Board() {
                   onDragLeave={(e) => (e.currentTarget.parentElement as HTMLElement)?.classList.remove('drag-over')}
                   onDrop={(e) => { e.preventDefault(); (e.currentTarget.parentElement as HTMLElement)?.classList.remove('drag-over'); onDropToColumn(idx); }}>
                   {cards.length === 0 ? <div className="empty">No projects yet<br/>drag one here</div> : null}
-                  {cards.map(p => (
+                  {cards.map((p, cardIdx) => (
                     <div key={p.id}
                       onDragStart={() => onDragStart(p.id)}
-                      onDragEnd={() => onDragEnd()}>
-                      <ProjectCard project={p} onEdit={editProject} onDelete={deleteProject} onOpen={openDetailsModal} />
+                      onDragEnd={() => onDragEnd()}
+                      onDragOver={(e) => onCardDragOver(e, idx, cardIdx)}
+                      className={`card-wrapper ${draggingId === p.id ? 'dragging' : ''} ${dropTargetRef.current?.colIdx === idx && dropTargetRef.current?.cardIdx === cardIdx ? 'drop-target' : ''} ${dropTargetRef.current?.colIdx === idx && dropTargetRef.current?.cardIdx === cardIdx && dropTargetRef.current?.position === 'before' ? 'drop-before' : ''} ${dropTargetRef.current?.colIdx === idx && dropTargetRef.current?.cardIdx === cardIdx && dropTargetRef.current?.position === 'after' ? 'drop-after' : ''}`}>
+                      <ProjectCard project={p} onEdit={editProject} onDelete={deleteProject} onOpen={openDetailsModal} dragging={draggingId === p.id} />
                     </div>
                   ))}
                 </div>

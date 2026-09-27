@@ -65,7 +65,6 @@ export default function Board() {
   const [formResetKey, setFormResetKey] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
   const dragIdRef = useRef<string | null>(null);
-  const dragHeightRef = useRef<number>(0);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ colIdx: number; cardIdx: number; position: 'before' | 'after' } | null>(null);
   const [dragOverCol, setDragOverCol] = useState<number | null>(null);
@@ -325,14 +324,19 @@ export default function Board() {
     dragIdRef.current = id || null;
     setDraggingId(id || null);
     setDropTarget(null);
-    const el = e.currentTarget as HTMLElement;
-    dragHeightRef.current = el.offsetHeight || 0;
+    try { e.dataTransfer.effectAllowed = 'move'; } catch (e) {}
   }
   function onDragEnd() { dragIdRef.current = null; setDropTarget(null); setDraggingId(null); setDragOverCol(null); }
 
-  function onCardDragOver(e: React.DragEvent, colIdx: number, cardIdx: number) {
+  function onCardDragOver(e: React.DragEvent, colIdx: number, cardIdx: number, cardId: string) {
     e.preventDefault();
     e.stopPropagation();
+    try { e.dataTransfer.dropEffect = 'move'; } catch (e) {}
+    // Hovering the dragged card itself: show no indicator (drop would be a no-op)
+    if (cardId === dragIdRef.current) {
+      setDropTarget((prev) => (prev === null ? prev : null));
+      return;
+    }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const midY = rect.top + rect.height / 2;
     const position = e.clientY < midY ? 'before' : 'after';
@@ -344,8 +348,9 @@ export default function Board() {
 
   function onColumnDragOver(e: React.DragEvent, colIdx: number, cardCount: number) {
     e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'move'; } catch (e) {}
     // Hovering empty column space (card-level handler stops propagation when over a card,
-    // so this only fires for gaps / empty columns): show placeholder at the end.
+    // so this only fires for gaps / empty columns): show indicator at the end.
     setDragOverCol(colIdx);
     if (cardCount === 0) {
       setDropTarget((prev) => (prev === null ? prev : null));
@@ -375,6 +380,9 @@ export default function Board() {
     const prev = projects;
     const dragged = prev.find(p => p.id === id);
     if (!dragged) return;
+
+    // Dropped back onto itself with no target (same column): no-op, avoid useless writes.
+    if (!target && dragged.status === idx) return;
 
     // Remove dragged card from its current position
     const withoutDragged = prev.filter(p => p.id !== id);
@@ -593,12 +601,11 @@ export default function Board() {
           </div>
         </div>
 
-        <div className="board" id="board" style={{ '--board-cols': activeColumns.length } as React.CSSProperties}>
+        <div className={`board${draggingId ? ' is-dragging' : ''}`} id="board" style={{ '--board-cols': activeColumns.length } as React.CSSProperties}>
           {activeColumns.map((col, idx) => {
             const cards = filteredProjects
               .filter(p => p.status === idx)
               .sort((a, b) => a.sortOrder - b.sortOrder);
-            const placeholderHeight = dragHeightRef.current > 0 ? dragHeightRef.current : 80;
             return (
               <div key={idx} className={`column col-${idx}`} style={{ '--column-accent': col.color } as React.CSSProperties}>
                 <div className="col-header">
@@ -611,27 +618,23 @@ export default function Board() {
                   onDrop={(e) => { e.preventDefault(); (e.currentTarget.parentElement as HTMLElement)?.classList.remove('drag-over'); onDropToColumn(idx); }}>
                   {cards.length === 0 ? (
                     draggingId && dragOverCol === idx ? (
-                      <div className="card-placeholder" style={{ height: placeholderHeight, minHeight: 80 }} />
+                      <div className="card-placeholder" style={{ minHeight: 80 }} />
                     ) : (
                       <div className="empty">No projects yet<br/>drag one here</div>
                     )
                   ) : null}
                   {cards.map((p, cardIdx) => {
                     const isDropTarget = dropTarget?.colIdx === idx && dropTarget?.cardIdx === cardIdx;
-                    const showBefore = isDropTarget && dropTarget?.position === 'before';
-                    const showAfter = isDropTarget && dropTarget?.position === 'after';
+                    const position = isDropTarget ? dropTarget?.position : null;
                     return (
-                      <React.Fragment key={p.id}>
-                        {showBefore ? <div className="card-placeholder" style={{ height: placeholderHeight, minHeight: 60 }} /> : null}
-                        <div
-                          onDragStart={(e) => onDragStart(e, p.id)}
-                          onDragEnd={() => onDragEnd()}
-                          onDragOver={(e) => onCardDragOver(e, idx, cardIdx)}
-                          className={`card-wrapper ${draggingId === p.id ? 'dragging' : ''}`}>
-                          <ProjectCard project={p} onEdit={editProject} onDelete={deleteProject} onOpen={openDetailsModal} dragging={draggingId === p.id} />
-                        </div>
-                        {showAfter ? <div className="card-placeholder" style={{ height: placeholderHeight, minHeight: 60 }} /> : null}
-                      </React.Fragment>
+                      <div
+                        key={p.id}
+                        onDragStart={(e) => onDragStart(e, p.id)}
+                        onDragEnd={() => onDragEnd()}
+                        onDragOver={(e) => onCardDragOver(e, idx, cardIdx, p.id)}
+                        className={`card-wrapper${draggingId === p.id ? ' dragging' : ''}${position === 'before' ? ' drop-before' : ''}${position === 'after' ? ' drop-after' : ''}`}>
+                        <ProjectCard project={p} onEdit={editProject} onDelete={deleteProject} onOpen={openDetailsModal} dragging={draggingId === p.id} />
+                      </div>
                     );
                   })}
                 </div>

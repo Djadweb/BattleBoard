@@ -65,9 +65,10 @@ export default function Board() {
   const [formResetKey, setFormResetKey] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
   const dragIdRef = useRef<string | null>(null);
-  const dropTargetRef = useRef<{ colIdx: number; cardIdx: number; position: 'before' | 'after' } | null>(null);
   const dragHeightRef = useRef<number>(0);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ colIdx: number; cardIdx: number; position: 'before' | 'after' } | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<number | null>(null);
 
   // Load projects only when user is authenticated
   useEffect(() => {
@@ -323,10 +324,11 @@ export default function Board() {
   function onDragStart(e: React.DragEvent, id?: string) {
     dragIdRef.current = id || null;
     setDraggingId(id || null);
+    setDropTarget(null);
     const el = e.currentTarget as HTMLElement;
-    dragHeightRef.current = el.offsetHeight;
+    dragHeightRef.current = el.offsetHeight || 0;
   }
-  function onDragEnd() { dragIdRef.current = null; dropTargetRef.current = null; setDraggingId(null); }
+  function onDragEnd() { dragIdRef.current = null; setDropTarget(null); setDraggingId(null); setDragOverCol(null); }
 
   function onCardDragOver(e: React.DragEvent, colIdx: number, cardIdx: number) {
     e.preventDefault();
@@ -334,97 +336,123 @@ export default function Board() {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const midY = rect.top + rect.height / 2;
     const position = e.clientY < midY ? 'before' : 'after';
-    dropTargetRef.current = { colIdx, cardIdx, position };
+    setDropTarget((prev) => {
+      if (prev && prev.colIdx === colIdx && prev.cardIdx === cardIdx && prev.position === position) return prev;
+      return { colIdx, cardIdx, position };
+    });
+  }
+
+  function onColumnDragOver(e: React.DragEvent, colIdx: number, cardCount: number) {
+    e.preventDefault();
+    // Hovering empty column space (card-level handler stops propagation when over a card,
+    // so this only fires for gaps / empty columns): show placeholder at the end.
+    setDragOverCol(colIdx);
+    if (cardCount === 0) {
+      setDropTarget((prev) => (prev === null ? prev : null));
+    } else {
+      setDropTarget((prev) => {
+        if (prev && prev.colIdx === colIdx && prev.cardIdx === cardCount - 1 && prev.position === 'after') return prev;
+        return { colIdx, cardIdx: cardCount - 1, position: 'after' };
+      });
+    }
+  }
+
+  function onColumnDragLeave(e: React.DragEvent) {
+    // Only clear when actually leaving the column (not when moving between cards inside it)
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setDragOverCol(null);
+    }
   }
 
   function onDropToColumn(idx: number) {
     const id = dragIdRef.current;
     if (!id) return;
-    const target = dropTargetRef.current;
-    dropTargetRef.current = null;
+    const target = dropTarget;
+    setDropTarget(null);
+    setDragOverCol(null);
 
-    setProjects((prev) => {
-      const dragged = prev.find(p => p.id === id);
-      if (!dragged) return prev;
+    // Compute the new order synchronously from current state so we can persist it.
+    const prev = projects;
+    const dragged = prev.find(p => p.id === id);
+    if (!dragged) return;
 
-      // Remove dragged card from its current position
-      const withoutDragged = prev.filter(p => p.id !== id);
+    // Remove dragged card from its current position
+    const withoutDragged = prev.filter(p => p.id !== id);
 
-      // Get cards in the target column (excluding dragged), sorted by sortOrder
-      const targetColCards = withoutDragged
-        .filter(p => p.status === idx)
-        .sort((a, b) => a.sortOrder - b.sortOrder);
+    // Cards in the target column (same type, excluding dragged), sorted by sortOrder.
+    // Use the array position as the source of truth for cardIdx.
+    const targetColCards = withoutDragged
+      .filter(p => p.status === idx && p.projectType === dragged.projectType)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
 
-      // Determine insertion index
-      let insertIdx: number;
-      if (target && target.colIdx === idx) {
-        const targetCard = targetColCards[target.cardIdx];
-        const realIdx = targetCard ? withoutDragged.indexOf(targetCard) : -1;
-        if (realIdx === -1) {
-          insertIdx = withoutDragged.length;
-        } else {
-          insertIdx = target.position === 'before' ? realIdx : realIdx + 1;
-        }
+    // Determine insertion index within the full array
+    let insertIdx: number;
+    if (target && target.colIdx === idx) {
+      const targetCard = targetColCards[target.cardIdx];
+      const realIdx = targetCard ? withoutDragged.indexOf(targetCard) : -1;
+      if (realIdx === -1) {
+        // Target card not found (e.g. type filter mismatch): append after last card of this column
+        let lastIdx = -1;
+        withoutDragged.forEach((p, i) => {
+          if (p.status === idx && p.projectType === dragged.projectType) lastIdx = i;
+        });
+        insertIdx = lastIdx === -1 ? withoutDragged.length : lastIdx + 1;
       } else {
-        insertIdx = withoutDragged.length;
+        insertIdx = target.position === 'before' ? realIdx : realIdx + 1;
       }
-
-      // Create the dragged card with updated status
-      const updatedDragged = { ...dragged, status: idx };
-
-      // Build new array
-      const next = [...withoutDragged];
-      next.splice(insertIdx, 0, updatedDragged);
-
-      // Reassign sortOrder for all cards in affected columns
-      const statusChanged = dragged.status !== idx;
-      const affectedColumns = statusChanged ? new Set([dragged.status, idx]) : new Set([idx]);
-      
-      const reordered = next.map(p => {
-        if (!affectedColumns.has(p.status)) return p;
-        return p;
+    } else {
+      // Dropped on empty column space: append after last card of this column
+      let lastIdx = -1;
+      withoutDragged.forEach((p, i) => {
+        if (p.status === idx && p.projectType === dragged.projectType) lastIdx = i;
       });
+      insertIdx = lastIdx === -1 ? withoutDragged.length : lastIdx + 1;
+    }
 
-      // Reassign sortOrder sequentially within each affected column
-      for (const col of affectedColumns) {
-        let order = 0;
-        for (let i = 0; i < reordered.length; i++) {
-          if (reordered[i].status === col) {
-            reordered[i] = { ...reordered[i], sortOrder: order++ };
+    // Create the dragged card with updated status
+    const updatedDragged = { ...dragged, status: idx };
+
+    // Build new array
+    const next = [...withoutDragged];
+    next.splice(insertIdx, 0, updatedDragged);
+
+    // Reassign sortOrder sequentially within each affected column (scoped to project type)
+    const statusChanged = dragged.status !== idx;
+    const affectedColumns = statusChanged ? [dragged.status, idx] : [idx];
+
+    const reordered = [...next];
+    for (const col of affectedColumns) {
+      let order = 0;
+      for (let i = 0; i < reordered.length; i++) {
+        if (reordered[i].status === col && reordered[i].projectType === dragged.projectType) {
+          if (reordered[i].sortOrder !== order) {
+            reordered[i] = { ...reordered[i], sortOrder: order };
           }
+          order++;
         }
       }
+    }
 
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(reordered)); } catch (e) {}
-      return reordered;
-    });
+    setProjects(reordered);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(reordered)); } catch (e) {}
 
-    // persist to Supabase (best-effort)
+    // persist to Supabase (best-effort): update every card in the affected columns
     (async () => {
       try {
-        const updates: { id: string; status: number; sort_order: number }[] = [];
-        // We need to compute the final state to persist
-        // Read current projects from state via a functional update pattern
-        setProjects((current) => {
-          const colCards = current.filter(p => p.status === idx).sort((a, b) => a.sortOrder - b.sortOrder);
-          // Also update the old column if status changed
-          const draggedCard = current.find(p => p.id === id);
-          if (draggedCard && draggedCard.status !== idx) {
-            const oldColCards = current.filter(p => p.status === draggedCard.status && p.id !== id).sort((a, b) => a.sortOrder - b.sortOrder);
-            oldColCards.forEach((p, i) => updates.push({ id: p.id, status: draggedCard.status, sort_order: i }));
-          }
-          colCards.forEach((p, i) => updates.push({ id: p.id, status: idx, sort_order: i }));
-          return current;
-        });
-
-        if (updates.length > 0) {
-          const { error } = await supabase.from('projects').upsert(
-            updates.map(u => ({ ...u, updated_at: new Date().toISOString() })),
-            { onConflict: 'id' }
-          );
-          if (error) {
-            console.warn('Failed to persist reorder to Supabase:', (error as any).message || error);
-          }
+        const toPersist = reordered.filter(
+          p => p.projectType === dragged.projectType && affectedColumns.includes(p.status)
+        );
+        const results = await Promise.all(
+          toPersist.map(p =>
+            supabase
+              .from('projects')
+              .update({ status: p.status, sort_order: p.sortOrder, updated_at: new Date().toISOString() })
+              .eq('id', p.id)
+          )
+        );
+        const failed = results.find(r => (r as any).error);
+        if (failed) {
+          console.warn('Failed to persist reorder to Supabase:', (failed as any).error?.message || (failed as any).error);
         }
       } catch (err) {
         console.warn('Unexpected error persisting reorder:', err);
@@ -567,7 +595,10 @@ export default function Board() {
 
         <div className="board" id="board" style={{ '--board-cols': activeColumns.length } as React.CSSProperties}>
           {activeColumns.map((col, idx) => {
-            const cards = filteredProjects.filter(p => p.status === idx);
+            const cards = filteredProjects
+              .filter(p => p.status === idx)
+              .sort((a, b) => a.sortOrder - b.sortOrder);
+            const placeholderHeight = dragHeightRef.current > 0 ? dragHeightRef.current : 80;
             return (
               <div key={idx} className={`column col-${idx}`} style={{ '--column-accent': col.color } as React.CSSProperties}>
                 <div className="col-header">
@@ -575,17 +606,23 @@ export default function Board() {
                   <span className="col-count">{cards.length}</span>
                 </div>
                 <div className="col-body" data-col={idx}
-                  onDragOver={(e) => { e.preventDefault(); (e.currentTarget.parentElement as HTMLElement)?.classList.add('drag-over'); }}
-                  onDragLeave={(e) => (e.currentTarget.parentElement as HTMLElement)?.classList.remove('drag-over')}
+                  onDragOver={(e) => { onColumnDragOver(e, idx, cards.length); (e.currentTarget.parentElement as HTMLElement)?.classList.add('drag-over'); }}
+                  onDragLeave={(e) => { onColumnDragLeave(e); (e.currentTarget.parentElement as HTMLElement)?.classList.remove('drag-over'); }}
                   onDrop={(e) => { e.preventDefault(); (e.currentTarget.parentElement as HTMLElement)?.classList.remove('drag-over'); onDropToColumn(idx); }}>
-                  {cards.length === 0 ? <div className="empty">No projects yet<br/>drag one here</div> : null}
+                  {cards.length === 0 ? (
+                    draggingId && dragOverCol === idx ? (
+                      <div className="card-placeholder" style={{ height: placeholderHeight, minHeight: 80 }} />
+                    ) : (
+                      <div className="empty">No projects yet<br/>drag one here</div>
+                    )
+                  ) : null}
                   {cards.map((p, cardIdx) => {
-                    const isDropTarget = dropTargetRef.current?.colIdx === idx && dropTargetRef.current?.cardIdx === cardIdx;
-                    const showBefore = isDropTarget && dropTargetRef.current?.position === 'before';
-                    const showAfter = isDropTarget && dropTargetRef.current?.position === 'after';
+                    const isDropTarget = dropTarget?.colIdx === idx && dropTarget?.cardIdx === cardIdx;
+                    const showBefore = isDropTarget && dropTarget?.position === 'before';
+                    const showAfter = isDropTarget && dropTarget?.position === 'after';
                     return (
                       <React.Fragment key={p.id}>
-                        {showBefore ? <div className="card-placeholder" style={{ height: dragHeightRef.current }} /> : null}
+                        {showBefore ? <div className="card-placeholder" style={{ height: placeholderHeight, minHeight: 60 }} /> : null}
                         <div
                           onDragStart={(e) => onDragStart(e, p.id)}
                           onDragEnd={() => onDragEnd()}
@@ -593,7 +630,7 @@ export default function Board() {
                           className={`card-wrapper ${draggingId === p.id ? 'dragging' : ''}`}>
                           <ProjectCard project={p} onEdit={editProject} onDelete={deleteProject} onOpen={openDetailsModal} dragging={draggingId === p.id} />
                         </div>
-                        {showAfter ? <div className="card-placeholder" style={{ height: dragHeightRef.current }} /> : null}
+                        {showAfter ? <div className="card-placeholder" style={{ height: placeholderHeight, minHeight: 60 }} /> : null}
                       </React.Fragment>
                     );
                   })}

@@ -66,6 +66,7 @@ export default function Board() {
   const [exportOpen, setExportOpen] = useState(false);
   const dragIdRef = useRef<string | null>(null);
   const dropTargetRef = useRef<{ colIdx: number; cardIdx: number; position: 'before' | 'after' } | null>(null);
+  const dragHeightRef = useRef<number>(0);
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
   // Load projects only when user is authenticated
@@ -319,7 +320,12 @@ export default function Board() {
     setDetailsEditing(false);
   }
 
-  function onDragStart(id?: string) { dragIdRef.current = id || null; setDraggingId(id || null); }
+  function onDragStart(e: React.DragEvent, id?: string) {
+    dragIdRef.current = id || null;
+    setDraggingId(id || null);
+    const el = e.currentTarget as HTMLElement;
+    dragHeightRef.current = el.offsetHeight;
+  }
   function onDragEnd() { dragIdRef.current = null; dropTargetRef.current = null; setDraggingId(null); }
 
   function onCardDragOver(e: React.DragEvent, colIdx: number, cardIdx: number) {
@@ -573,15 +579,24 @@ export default function Board() {
                   onDragLeave={(e) => (e.currentTarget.parentElement as HTMLElement)?.classList.remove('drag-over')}
                   onDrop={(e) => { e.preventDefault(); (e.currentTarget.parentElement as HTMLElement)?.classList.remove('drag-over'); onDropToColumn(idx); }}>
                   {cards.length === 0 ? <div className="empty">No projects yet<br/>drag one here</div> : null}
-                  {cards.map((p, cardIdx) => (
-                    <div key={p.id}
-                      onDragStart={() => onDragStart(p.id)}
-                      onDragEnd={() => onDragEnd()}
-                      onDragOver={(e) => onCardDragOver(e, idx, cardIdx)}
-                      className={`card-wrapper ${draggingId === p.id ? 'dragging' : ''} ${dropTargetRef.current?.colIdx === idx && dropTargetRef.current?.cardIdx === cardIdx ? 'drop-target' : ''} ${dropTargetRef.current?.colIdx === idx && dropTargetRef.current?.cardIdx === cardIdx && dropTargetRef.current?.position === 'before' ? 'drop-before' : ''} ${dropTargetRef.current?.colIdx === idx && dropTargetRef.current?.cardIdx === cardIdx && dropTargetRef.current?.position === 'after' ? 'drop-after' : ''}`}>
-                      <ProjectCard project={p} onEdit={editProject} onDelete={deleteProject} onOpen={openDetailsModal} dragging={draggingId === p.id} />
-                    </div>
-                  ))}
+                  {cards.map((p, cardIdx) => {
+                    const isDropTarget = dropTargetRef.current?.colIdx === idx && dropTargetRef.current?.cardIdx === cardIdx;
+                    const showBefore = isDropTarget && dropTargetRef.current?.position === 'before';
+                    const showAfter = isDropTarget && dropTargetRef.current?.position === 'after';
+                    return (
+                      <React.Fragment key={p.id}>
+                        {showBefore ? <div className="card-placeholder" style={{ height: dragHeightRef.current }} /> : null}
+                        <div
+                          onDragStart={(e) => onDragStart(e, p.id)}
+                          onDragEnd={() => onDragEnd()}
+                          onDragOver={(e) => onCardDragOver(e, idx, cardIdx)}
+                          className={`card-wrapper ${draggingId === p.id ? 'dragging' : ''}`}>
+                          <ProjectCard project={p} onEdit={editProject} onDelete={deleteProject} onOpen={openDetailsModal} dragging={draggingId === p.id} />
+                        </div>
+                        {showAfter ? <div className="card-placeholder" style={{ height: dragHeightRef.current }} /> : null}
+                      </React.Fragment>
+                    );
+                  })}
                 </div>
               </div>
             );

@@ -841,7 +841,15 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave, cancelL
   const [status, setStatus] = useState<number>(normalizeStatusForType(editing?.status ?? 0, initialProjectType));
   const [projectType, setProjectType] = useState<ProjectType>(initialProjectType);
   const [isFun, setIsFun] = useState<boolean>(editing?.isFun ?? false);
+  const [activeTab, setActiveTab] = useState<'details' | 'todos' | 'settings'>('details');
   const statusOptions = getColumnsForType(projectType);
+  const currentName = editing?.name || '';
+  const currentDesc = editing?.desc || '';
+  const currentTags = (editing?.tags || []).join(', ');
+  const currentProjectType = editing?.projectType ?? selectedType;
+  const currentIsFun = editing?.isFun ?? false;
+  const currentStatus = editing?.status ?? 0;
+  const isDirty = name.trim() !== currentName || desc.trim() !== currentDesc || tagsRaw !== currentTags || projectType !== currentProjectType || isFun !== currentIsFun || status !== currentStatus;
 
   useEffect(() => {
     const nextProjectType = editing?.projectType ?? selectedType;
@@ -852,6 +860,7 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave, cancelL
     setStatus(normalizeStatusForType(editing?.status ?? 0, nextProjectType));
     setProjectType(nextProjectType);
     setIsFun(editing?.isFun ?? false);
+    setActiveTab('details');
   }, [editId, editing, selectedType]);
 
   useEffect(() => {
@@ -865,56 +874,253 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave, cancelL
     await onSave({ name: name.trim(), desc: desc.trim(), tags, todos, status, projectType, isFun });
   }
 
+  const todoStats = {
+    total: todos.length,
+    completed: todos.filter(t => t.completed).length,
+    pct: todos.length ? Math.round((todos.filter(t => t.completed).length / todos.length) * 100) : 0
+  };
+
   return (
-    <form onSubmit={submit}>
-      <div className="form-group">
-        <label className="form-label">Project Name *</label>
-        <input className="form-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Portfolio Redesign" />
+    <form onSubmit={submit} className="project-form">
+      <div className="form-tabs" role="tablist" aria-label="Form sections">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'details'}
+          aria-controls="panel-details"
+          id="tab-details"
+          className={`form-tab ${activeTab === 'details' ? 'active' : ''}`}
+          onClick={() => setActiveTab('details')}
+        >
+          <span className="tab-icon" aria-hidden="true">📝</span>
+          <span>Details</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'todos'}
+          aria-controls="panel-todos"
+          id="tab-todos"
+          className={`form-tab ${activeTab === 'todos' ? 'active' : ''}`}
+          onClick={() => setActiveTab('todos')}
+        >
+          <span className="tab-icon" aria-hidden="true">✓</span>
+          <span>Todos</span>
+          <span className="tab-badge">{todoStats.total}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'settings'}
+          aria-controls="panel-settings"
+          id="tab-settings"
+          className={`form-tab ${activeTab === 'settings' ? 'active' : ''}`}
+          onClick={() => setActiveTab('settings')}
+        >
+          <span className="tab-icon" aria-hidden="true">⚙</span>
+          <span>Settings</span>
+        </button>
       </div>
-      <div className="form-group">
-        <label className="form-label">Description</label>
-        <textarea className="form-textarea" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What's this project about?"></textarea>
+
+      <div className="form-panels" role="tabpanel" id="panel-details" aria-labelledby="tab-details" hidden={activeTab !== 'details'}>
+        <div className="form-section">
+          <div className="form-field">
+            <label className="form-label" htmlFor="project-name">
+              Project Name <span className="required" aria-hidden="true">*</span>
+            </label>
+            <div className="input-wrapper">
+              <input
+                id="project-name"
+                className="form-input"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Portfolio Redesign"
+                autoFocus
+                autoComplete="off"
+              />
+            </div>
+          </div>
+
+          <div className="form-field">
+            <label className="form-label" htmlFor="project-desc">Description</label>
+            <div className="input-wrapper">
+              <textarea
+                id="project-desc"
+                className="form-textarea"
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                placeholder="What's this project about? Add context, goals, links..."
+                rows={3}
+              ></textarea>
+            </div>
+          </div>
+
+          <div className="form-field">
+            <label className="form-label" htmlFor="project-tags">Tags</label>
+            <div className="input-wrapper">
+              <TagsInput
+                value={tagsRaw}
+                onChange={setTagsRaw}
+                placeholder="Add tags... (press Enter or comma)"
+              />
+            </div>
+            <p className="form-hint">Press Enter or comma to add tags. Click to remove.</p>
+          </div>
+        </div>
       </div>
-      <div className="form-group">
-        <label className="form-label">Tags (comma separated)</label>
-        <input className="form-input" value={tagsRaw} onChange={(e) => setTagsRaw(e.target.value)} placeholder="e.g. Next.js, Supabase, UI" />
-      </div>
-      <div className="form-group">
-        <label className="form-label">Project Type</label>
-        <select className="form-select" value={projectType} onChange={(e) => setProjectType(e.target.value as ProjectType)}>
-          <option value="software">Software Project</option>
-          <option value="business">Business Project</option>
-        </select>
-      </div>
-      <div className="form-group">
-        <label className="form-label checkbox-label">
-          <input type="checkbox" checked={isFun} onChange={(e) => setIsFun(e.target.checked)} />
-          <span>Fun Project</span>
-        </label>
-      </div>
-      <div className="form-group">
-        <label className="form-label">Status</label>
-        <select className="form-select" value={status} onChange={(e) => setStatus(Number(e.target.value))}>
-          {statusOptions.map((option, index) => (
-            <option key={`${projectType}-${index}`} value={index}>{option.label}</option>
-          ))}
-        </select>
-      </div>
-      <div className="form-group">
+
+      <div className="form-panels" role="tabpanel" id="panel-todos" aria-labelledby="tab-todos" hidden={activeTab !== 'todos'}>
         <TodoListEditor
           todos={todos}
           onChange={setTodos}
-          title="Related Todo List"
-          helperText="Add checklist items for this task before you save it."
-          emptyLabel="No todo items yet."
-          addLabel="Add Todo"
+          title="Todo List"
+          helperText="Break down your project into actionable tasks"
+          emptyLabel="No tasks yet. Add your first task below."
+          addLabel="+ Add Task"
         />
       </div>
-      <div className="modal-footer">
-        <button type="button" className="btn-secondary" onClick={onCancel}>{cancelLabel}</button>
-        <button type="submit" className="btn-primary">{submitLabel}</button>
+
+      <div className="form-panels" role="tabpanel" id="panel-settings" aria-labelledby="tab-settings" hidden={activeTab !== 'settings'}>
+        <div className="form-section">
+          <div className="settings-group">
+            <div className="settings-label">Project Type</div>
+            <div className="type-options" role="radiogroup" aria-label="Project type">
+              <label className={`type-option ${projectType === 'software' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="project-type"
+                  value="software"
+                  checked={projectType === 'software'}
+                  onChange={() => setProjectType('software')}
+                />
+                <div className="type-option-content">
+                  <span className="type-icon">💻</span>
+                  <div className="type-info">
+                    <span className="type-name">Software</span>
+                    <span className="type-desc">Code, apps, APIs, websites</span>
+                  </div>
+                </div>
+                <span className="type-indicator" aria-hidden="true"></span>
+              </label>
+              <label className={`type-option ${projectType === 'business' ? 'selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="project-type"
+                  value="business"
+                  checked={projectType === 'business'}
+                  onChange={() => setProjectType('business')}
+                />
+                <div className="type-option-content">
+                  <span className="type-icon">💼</span>
+                  <div className="type-info">
+                    <span className="type-name">Business</span>
+                    <span className="type-desc">Plans, strategy, operations</span>
+                  </div>
+                </div>
+                <span className="type-indicator" aria-hidden="true"></span>
+              </label>
+            </div>
+          </div>
+
+          <div className="settings-group">
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={isFun}
+                onChange={(e) => setIsFun(e.target.checked)}
+              />
+              <span className="toggle-slider" aria-hidden="true"></span>
+              <div className="toggle-content">
+                <span className="toggle-label">Fun Project</span>
+                <span className="toggle-desc">Mark as a side project or experiment</span>
+              </div>
+            </label>
+          </div>
+
+          <div className="settings-group">
+            <label className="form-label" htmlFor="project-status">Status</label>
+            <div className="input-wrapper">
+              <select
+                id="project-status"
+                className="form-select"
+                value={status}
+                onChange={(e) => setStatus(Number(e.target.value))}
+              >
+                {statusOptions.map((option, index) => (
+                  <option key={`${projectType}-${index}`} value={index}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="form-actions">
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={onCancel}
+          disabled={!isDirty && !editId}
+        >
+          {cancelLabel}
+        </button>
+        <button
+          type="submit"
+          className="btn-primary"
+          disabled={!name.trim() || (!isDirty && !!editId)}
+        >
+          {submitLabel}
+        </button>
       </div>
     </form>
+  );
+}
+
+function TagsInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
+  const tags = value.split(',').map(t => t.trim()).filter(Boolean);
+  const [inputValue, setInputValue] = useState('');
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if ((e.key === 'Enter' || e.key === ',') && inputValue.trim()) {
+      e.preventDefault();
+      const newTags = [...tags, inputValue.trim()];
+      onChange(newTags.join(', '));
+      setInputValue('');
+    } else if (e.key === 'Backspace' && !inputValue && tags.length > 0) {
+      const newTags = tags.slice(0, -1);
+      onChange(newTags.join(', '));
+    }
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setInputValue(e.target.value);
+  }
+
+  function removeTag(tagToRemove: string) {
+    const newTags = tags.filter(t => t !== tagToRemove);
+    onChange(newTags.join(', '));
+  }
+
+  return (
+    <div className="tags-input">
+      <div className="tags-display">
+        {tags.map(tag => (
+          <span key={tag} className="tag-pill">
+            <span>{tag}</span>
+            <button type="button" className="tag-remove" onClick={() => removeTag(tag)} aria-label={`Remove tag ${tag}`}>×</button>
+          </span>
+        ))}
+      </div>
+      <input
+        type="text"
+        className="tags-input-field"
+        value={inputValue}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        placeholder={tags.length ? '' : placeholder}
+        aria-label="Add tag"
+      />
+    </div>
   );
 }
 

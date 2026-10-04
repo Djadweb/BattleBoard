@@ -375,6 +375,10 @@ export default function Board() {
     const target = dropTarget;
     setDropTarget(null);
     setDragOverCol(null);
+    // Clear drag state immediately so the card never stays stuck at low opacity
+    // if the dragend event doesn't fire after the drop re-render.
+    dragIdRef.current = null;
+    setDraggingId(null);
 
     // Compute the new order synchronously from current state so we can persist it.
     const prev = projects;

@@ -1034,6 +1034,7 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave, cancelL
                 <span className="toggle-label">Fun Project</span>
                 <span className="toggle-desc">Mark as a side project or experiment</span>
               </div>
+              {isFun && <span className="toggle-fun-badge" aria-hidden="true">Fun</span>}
             </label>
           </div>
 

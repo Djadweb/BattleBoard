@@ -15,7 +15,7 @@ export type Project = {
   status: number;
   sortOrder: number;
   date: string;
-  projectType: 'software' | 'business';
+  projectType: 'software' | 'business' | 'fun';
 };
 
 export default function ProjectCard({ project, onEdit, onDelete, onOpen, dragging }: { project: Project; onEdit: (id: string) => void; onDelete: (id: string) => void; onOpen: (id: string) => void; dragging?: boolean; }) {
@@ -45,7 +45,7 @@ export default function ProjectCard({ project, onEdit, onDelete, onOpen, draggin
       <div className="card-top">
         <div>
           <div className="card-title">{project.name}</div>
-          <div className={`project-type-badge ${project.projectType}`}>{project.projectType === 'software' ? 'Software' : 'Business'}</div>
+          <div className={`project-type-badge ${project.projectType}`}>{project.projectType === 'software' ? 'Software' : project.projectType === 'business' ? 'Business' : 'Fun'}</div>
         </div>
         <button className="card-menu-btn" onClick={(event) => { event.stopPropagation(); onEdit(project.id); }} title="Edit">✎</button>
       </div>

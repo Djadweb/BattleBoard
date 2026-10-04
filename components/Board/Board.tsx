@@ -7,9 +7,11 @@ import supabase from '../../lib/supabaseClient';
 import ProjectCard, { Project, TodoItem } from '../Card/ProjectCard';
 import { getColumnsForType, normalizeStatusForType, type ProjectType } from '../../lib/projectColumns';
 
+type ExtendedProjectType = 'software' | 'business' | 'fun';
+
 const STORAGE_KEY = 'pb_projects';
 
-type ProjectPayload = { name: string; desc?: string; tags?: string[]; todos: TodoItem[]; status: number; sortOrder?: number; projectType: ProjectType };
+type ProjectPayload = { name: string; desc?: string; tags?: string[]; todos: TodoItem[]; status: number; sortOrder?: number; projectType: ExtendedProjectType };
 
 function normalizeTodos(input: unknown): TodoItem[] {
   if (!Array.isArray(input)) return [];
@@ -35,7 +37,7 @@ function mapProject(row: any, fallback?: Partial<Project> | null): Project {
     status: row.status,
     sortOrder: typeof row.sort_order === 'number' ? row.sort_order : (fallback?.sortOrder ?? 0),
     date: (row.created_at || '').slice(0,10),
-    projectType: row.project_type === 'business' ? 'business' : 'software'
+    projectType: row.project_type === 'business' ? 'business' : row.project_type === 'fun' ? 'fun' : 'software'
   };
 }
 
@@ -44,7 +46,7 @@ function normalizeLocalProjects(raw: string): Project[] {
     ...project,
     todos: normalizeTodos(project.todos),
     sortOrder: typeof project.sortOrder === 'number' ? project.sortOrder : 0,
-    projectType: project.projectType === 'business' ? 'business' : 'software'
+    projectType: project.projectType === 'business' ? 'business' : project.projectType === 'fun' ? 'fun' : 'software'
   }));
 }
 
@@ -102,7 +104,9 @@ export default function Board() {
           { id: uid(), name: 'E-commerce Dashboard', desc: 'Admin dashboard for online store analytics', tags: ['React','Recharts'], todos: [], status: 1, sortOrder: 1, date: '2025-02-10', projectType: 'software' },
           { id: uid(), name: 'Mobile Budget App', desc: 'React Native budget tracker with charts', tags: ['React Native','Expo'], todos: [], status: 0, sortOrder: 0, date: '2025-03-01', projectType: 'software' },
           { id: uid(), name: 'Agency Partnership Plan', desc: 'Quarterly business growth roadmap for agency partnerships', tags: ['Sales','Planning'], todos: [], status: 0, sortOrder: 0, date: '2025-02-05', projectType: 'business' },
-          { id: uid(), name: 'AI Chat Interface', desc: 'Claude-powered conversational UI', tags: ['Next.js','Supabase'], todos: [], status: 2, sortOrder: 0, date: '2025-02-20', projectType: 'software' }
+          { id: uid(), name: 'AI Chat Interface', desc: 'Claude-powered conversational UI', tags: ['Next.js','Supabase'], todos: [], status: 2, sortOrder: 0, date: '2025-02-20', projectType: 'software' },
+          { id: uid(), name: 'Game Jam Prototype', desc: 'Weekend game jam entry - procedural platformer', tags: ['Unity','C#'], todos: [], status: 2, sortOrder: 0, date: '2025-03-15', projectType: 'fun' },
+          { id: uid(), name: 'Generative Art Sketch', desc: 'Creative coding experiment with p5.js', tags: ['p5.js','Creative Coding'], todos: [], status: 1, sortOrder: 0, date: '2025-03-20', projectType: 'fun' }
         ];
         if (!mounted) return;
         setProjects(seed);
@@ -873,9 +877,10 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave, cancelL
       </div>
       <div className="form-group">
         <label className="form-label">Project Type</label>
-        <select className="form-select" value={projectType} onChange={(e) => setProjectType(e.target.value as ProjectType)}>
+        <select className="form-select" value={projectType} onChange={(e) => setProjectType(e.target.value as ExtendedProjectType)}>
           <option value="software">Software Project</option>
           <option value="business">Business Project</option>
+          <option value="fun">Fun Project</option>
         </select>
       </div>
       <div className="form-group">

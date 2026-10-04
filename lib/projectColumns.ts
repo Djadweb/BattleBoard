@@ -1,4 +1,4 @@
-export type ProjectType = 'software' | 'business';
+export type ProjectType = 'software' | 'business' | 'fun';
 
 export type BoardColumn = {
   label: string;
@@ -22,8 +22,18 @@ export const BUSINESS_COLS: BoardColumn[] = [
   { label: '🗑️ Bin', color: 'var(--col6)' }
 ];
 
+export const FUN_COLS: BoardColumn[] = [
+  { label: 'Idea', color: 'var(--col1)' },
+  { label: 'Prototyping', color: 'var(--col2)' },
+  { label: 'Polishing', color: 'var(--col3)' },
+  { label: 'Done', color: 'var(--col4)' },
+  { label: '🗑️ Bin', color: 'var(--col6)' }
+];
+
 export function getColumnsForType(projectType: ProjectType): BoardColumn[] {
-  return projectType === 'business' ? BUSINESS_COLS : SOFTWARE_COLS;
+  if (projectType === 'business') return BUSINESS_COLS;
+  if (projectType === 'fun') return FUN_COLS;
+  return SOFTWARE_COLS;
 }
 
 export function normalizeStatusForType(status: number, projectType: ProjectType): number {

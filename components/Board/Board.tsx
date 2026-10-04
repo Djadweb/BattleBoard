@@ -7,11 +7,9 @@ import supabase from '../../lib/supabaseClient';
 import ProjectCard, { Project, TodoItem } from '../Card/ProjectCard';
 import { getColumnsForType, normalizeStatusForType, type ProjectType } from '../../lib/projectColumns';
 
-type ExtendedProjectType = 'software' | 'business' | 'fun';
-
 const STORAGE_KEY = 'pb_projects';
 
-type ProjectPayload = { name: string; desc?: string; tags?: string[]; todos: TodoItem[]; status: number; sortOrder?: number; projectType: ExtendedProjectType };
+type ProjectPayload = { name: string; desc?: string; tags?: string[]; todos: TodoItem[]; status: number; sortOrder?: number; projectType: ProjectType; isFun?: boolean };
 
 function normalizeTodos(input: unknown): TodoItem[] {
   if (!Array.isArray(input)) return [];
@@ -37,7 +35,8 @@ function mapProject(row: any, fallback?: Partial<Project> | null): Project {
     status: row.status,
     sortOrder: typeof row.sort_order === 'number' ? row.sort_order : (fallback?.sortOrder ?? 0),
     date: (row.created_at || '').slice(0,10),
-    projectType: row.project_type === 'business' ? 'business' : row.project_type === 'fun' ? 'fun' : 'software'
+    projectType: row.project_type === 'business' ? 'business' : 'software',
+    isFun: row.is_fun === true
   };
 }
 
@@ -46,7 +45,8 @@ function normalizeLocalProjects(raw: string): Project[] {
     ...project,
     todos: normalizeTodos(project.todos),
     sortOrder: typeof project.sortOrder === 'number' ? project.sortOrder : 0,
-    projectType: project.projectType === 'business' ? 'business' : project.projectType === 'fun' ? 'fun' : 'software'
+    projectType: project.projectType === 'business' ? 'business' : 'software',
+    isFun: project.isFun === true
   }));
 }
 
@@ -105,8 +105,8 @@ export default function Board() {
           { id: uid(), name: 'Mobile Budget App', desc: 'React Native budget tracker with charts', tags: ['React Native','Expo'], todos: [], status: 0, sortOrder: 0, date: '2025-03-01', projectType: 'software' },
           { id: uid(), name: 'Agency Partnership Plan', desc: 'Quarterly business growth roadmap for agency partnerships', tags: ['Sales','Planning'], todos: [], status: 0, sortOrder: 0, date: '2025-02-05', projectType: 'business' },
           { id: uid(), name: 'AI Chat Interface', desc: 'Claude-powered conversational UI', tags: ['Next.js','Supabase'], todos: [], status: 2, sortOrder: 0, date: '2025-02-20', projectType: 'software' },
-          { id: uid(), name: 'Game Jam Prototype', desc: 'Weekend game jam entry - procedural platformer', tags: ['Unity','C#'], todos: [], status: 2, sortOrder: 0, date: '2025-03-15', projectType: 'fun' },
-          { id: uid(), name: 'Generative Art Sketch', desc: 'Creative coding experiment with p5.js', tags: ['p5.js','Creative Coding'], todos: [], status: 1, sortOrder: 0, date: '2025-03-20', projectType: 'fun' }
+          { id: uid(), name: 'Game Jam Prototype', desc: 'Weekend game jam entry - procedural platformer', tags: ['Unity','C#'], todos: [], status: 2, sortOrder: 0, date: '2025-03-15', projectType: 'software', isFun: true },
+          { id: uid(), name: 'Generative Art Sketch', desc: 'Creative coding experiment with p5.js', tags: ['p5.js','Creative Coding'], todos: [], status: 1, sortOrder: 0, date: '2025-03-20', projectType: 'software', isFun: true }
         ];
         if (!mounted) return;
         setProjects(seed);
@@ -274,6 +274,7 @@ export default function Board() {
           status: payload.status,
           sort_order: payload.sortOrder ?? 0,
           project_type: payload.projectType,
+          is_fun: payload.isFun ?? false,
           updated_at: new Date().toISOString()
         };
         const { data, error } = await supabase.from('projects').update(updates).eq('id', targetId).eq('user_id', user.id).select();
@@ -293,7 +294,8 @@ export default function Board() {
           todos: payload.todos,
           status: payload.status,
           sort_order: payload.sortOrder ?? 0,
-          project_type: payload.projectType
+          project_type: payload.projectType,
+          is_fun: payload.isFun ?? false
         };
         const { data, error } = await supabase.from('projects').insert([toInsert]).select();
         if (error) throw error;
@@ -838,6 +840,7 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave, cancelL
   const initialProjectType = editing?.projectType ?? selectedType;
   const [status, setStatus] = useState<number>(normalizeStatusForType(editing?.status ?? 0, initialProjectType));
   const [projectType, setProjectType] = useState<ProjectType>(initialProjectType);
+  const [isFun, setIsFun] = useState<boolean>(editing?.isFun ?? false);
   const statusOptions = getColumnsForType(projectType);
 
   useEffect(() => {
@@ -848,6 +851,7 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave, cancelL
     setTodos(normalizeTodos(editing?.todos));
     setStatus(normalizeStatusForType(editing?.status ?? 0, nextProjectType));
     setProjectType(nextProjectType);
+    setIsFun(editing?.isFun ?? false);
   }, [editId, editing, selectedType]);
 
   useEffect(() => {
@@ -858,7 +862,7 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave, cancelL
     e?.preventDefault();
     if (!name.trim()) return;
     const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
-    await onSave({ name: name.trim(), desc: desc.trim(), tags, todos, status, projectType });
+    await onSave({ name: name.trim(), desc: desc.trim(), tags, todos, status, projectType, isFun });
   }
 
   return (
@@ -877,11 +881,16 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave, cancelL
       </div>
       <div className="form-group">
         <label className="form-label">Project Type</label>
-        <select className="form-select" value={projectType} onChange={(e) => setProjectType(e.target.value as ExtendedProjectType)}>
+        <select className="form-select" value={projectType} onChange={(e) => setProjectType(e.target.value as ProjectType)}>
           <option value="software">Software Project</option>
           <option value="business">Business Project</option>
-          <option value="fun">Fun Project</option>
         </select>
+      </div>
+      <div className="form-group">
+        <label className="form-label checkbox-label">
+          <input type="checkbox" checked={isFun} onChange={(e) => setIsFun(e.target.checked)} />
+          <span>Fun Project</span>
+        </label>
       </div>
       <div className="form-group">
         <label className="form-label">Status</label>

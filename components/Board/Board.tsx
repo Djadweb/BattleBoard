@@ -9,7 +9,6 @@ import { getColumnsForType, normalizeStatusForType, type ProjectType } from '../
 
 const STORAGE_KEY = 'pb_projects';
 const VIEW_STORAGE_KEY = 'pb_view';
-const MOBILE_QUERY = '(max-width: 600px)';
 
 type BoardView = 'kanban' | 'list';
 
@@ -60,7 +59,6 @@ export default function Board() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedType, setSelectedType] = useState<ProjectType>('software');
   const [view, setView] = useState<BoardView>('kanban');
-  const [isMobile, setIsMobile] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [detailsEditing, setDetailsEditing] = useState(false);
@@ -144,17 +142,6 @@ export default function Board() {
   useEffect(() => {
     try { localStorage.setItem(VIEW_STORAGE_KEY, view); } catch {}
   }, [view]);
-
-  // On small screens the view toggle is hidden, so the list view takes over
-  useEffect(() => {
-    const mq = window.matchMedia(MOBILE_QUERY);
-    const sync = () => setIsMobile(mq.matches);
-    sync();
-    mq.addEventListener('change', sync);
-    return () => mq.removeEventListener('change', sync);
-  }, []);
-
-  const activeView: BoardView = isMobile ? 'list' : view;
 
   // Realtime subscription to projects table (only when signed in)
   useEffect(() => {
@@ -637,91 +624,23 @@ export default function Board() {
           <div className="view-toggle" role="group" aria-label="Board view">
             <button
               type="button"
-              className={`view-btn ${activeView === 'kanban' ? 'active' : ''}`}
+              className={`view-btn ${view === 'kanban' ? 'active' : ''}`}
               title="Kanban"
               aria-label="Kanban view"
-              aria-pressed={activeView === 'kanban'}
+              aria-pressed={view === 'kanban'}
               onClick={() => setView('kanban')}
             >⊞</button>
             <button
               type="button"
-              className={`view-btn ${activeView === 'list' ? 'active' : ''}`}
+              className={`view-btn ${view === 'list' ? 'active' : ''}`}
               title="List"
               aria-label="List view"
-              aria-pressed={activeView === 'list'}
+              aria-pressed={view === 'list'}
               onClick={() => setView('list')}
             >☰</button>
           </div>
         </div>
 
-        {activeView === 'list' ? (
-          <div className="list-view" id="list-view">
-            {activeColumns.map((col, idx) => {
-              const cards = filteredProjects
-                .filter(p => p.status === idx)
-                .sort((a, b) => a.sortOrder - b.sortOrder);
-              return (
-                <section
-                  key={idx}
-                  className="list-section"
-                  aria-label={col.label}
-                  style={{ '--column-accent': col.color } as React.CSSProperties}
-                >
-                  <div className="list-section-header">
-                    <div className="col-name"><span className="col-name-dot" style={{background:col.color}}></span>{col.label}</div>
-                    <span className="col-count">{cards.length}</span>
-                  </div>
-                  {cards.length === 0 ? (
-                    <div className="empty list-empty">No projects here yet</div>
-                  ) : cards.map((p) => {
-                    const todos = Array.isArray(p.todos) ? p.todos : [];
-                    const doneCount = todos.filter((todo) => todo.completed).length;
-                    const todoPct = todos.length ? Math.round((doneCount / todos.length) * 100) : 0;
-                    return (
-                      <div
-                        key={p.id}
-                        className="list-row"
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => openDetailsModal(p.id)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetailsModal(p.id); } }}
-                      >
-                        <div className="list-row-main">
-                          <div className="list-row-title">
-                            <span className="list-row-name">{p.name}</span>
-                            {p.isFun && <span className="fun-badge">Fun</span>}
-                          </div>
-                          {p.desc ? <div className="list-row-desc">{p.desc}</div> : null}
-                          {p.tags && p.tags.length ? (
-                            <div className="list-row-tags">{p.tags.map((t) => <span className="tag" key={t}>{t}</span>)}</div>
-                          ) : null}
-                        </div>
-                        <div className="list-row-status">
-                          <span className="status-pill"><span className="col-name-dot" style={{background:col.color}}></span>{col.label}</span>
-                        </div>
-                        <div className="list-row-todo">
-                          {todos.length ? (
-                            <>
-                              <span className="list-todo-count">{doneCount}/{todos.length}</span>
-                              <div className="list-todo-bar"><div className="list-todo-fill" style={{width:`${todoPct}%`}}></div></div>
-                            </>
-                          ) : (
-                            <span className="list-todo-count muted">No todos</span>
-                          )}
-                        </div>
-                        <div className="list-row-date">{new Date(p.date).toLocaleDateString()}</div>
-                        <div className="list-row-actions" onClick={(e) => e.stopPropagation()}>
-                          <button className="action-btn" onClick={() => editProject(p.id)} title="Edit">✎</button>
-                          <button className="action-btn danger" onClick={() => deleteProject(p.id)} title="Delete">✕</button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </section>
-              );
-            })}
-          </div>
-        ) : (
         <div className={`board${draggingId ? ' is-dragging' : ''}`} id="board" style={{ '--board-cols': activeColumns.length } as React.CSSProperties}>
           {activeColumns.map((col, idx) => {
             const cards = filteredProjects
@@ -754,7 +673,11 @@ export default function Board() {
                         onDragEnd={() => onDragEnd()}
                         onDragOver={(e) => onCardDragOver(e, idx, cardIdx, p.id)}
                         className={`card-wrapper${draggingId === p.id ? ' dragging' : ''}${position === 'before' ? ' drop-before' : ''}${position === 'after' ? ' drop-after' : ''}`}>
-                        <ProjectCard project={p} onEdit={editProject} onDelete={deleteProject} onOpen={openDetailsModal} dragging={draggingId === p.id} />
+                        {view === 'list' ? (
+                          <CompactProjectRow project={p} onEdit={editProject} onDelete={deleteProject} onOpen={openDetailsModal} dragging={draggingId === p.id} />
+                        ) : (
+                          <ProjectCard project={p} onEdit={editProject} onDelete={deleteProject} onOpen={openDetailsModal} dragging={draggingId === p.id} />
+                        )}
                       </div>
                     );
                   })}
@@ -763,7 +686,6 @@ export default function Board() {
             );
           })}
         </div>
-        )}
       </main>
 
       <nav className="mobile-app-bar" aria-label="Mobile navigation">
@@ -939,6 +861,43 @@ export default function Board() {
       />
       {/* Auth modal */}
       {authOpen ? <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} initialMode={authInitialMode} /> : null}
+    </div>
+  );
+}
+
+function CompactProjectRow({ project, onEdit, onDelete, onOpen, dragging }: { project: Project; onEdit: (id: string) => void; onDelete: (id: string) => void; onOpen: (id: string) => void; dragging?: boolean }) {
+  const todos = Array.isArray(project.todos) ? project.todos : [];
+  const doneCount = todos.filter((todo) => todo.completed).length;
+
+  return (
+    <div
+      className={`compact-row${dragging ? ' dragging' : ''}`}
+      draggable={true}
+      data-id={project.id}
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(project.id)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpen(project.id);
+        }
+      }}
+    >
+      <div className="compact-main">
+        <div className="compact-title-row">
+          <span className="compact-name">{project.name}</span>
+          {project.isFun && <span className="fun-badge">Fun</span>}
+        </div>
+        <div className="compact-meta">
+          {todos.length ? <span>{doneCount}/{todos.length} todos</span> : null}
+          <span>{new Date(project.date).toLocaleDateString()}</span>
+        </div>
+      </div>
+      <div className="compact-actions" onClick={(event) => event.stopPropagation()}>
+        <button className="action-btn" onClick={() => onEdit(project.id)} title="Edit">✎</button>
+        <button className="action-btn danger" onClick={() => onDelete(project.id)} title="Delete">✕</button>
+      </div>
     </div>
   );
 }

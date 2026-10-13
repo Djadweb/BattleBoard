@@ -17,6 +17,7 @@ export type Project = {
   date: string;
   projectType: 'software' | 'business';
   isFun?: boolean;
+  isImportant?: boolean;
 };
 
 export default function ProjectCard({ project, onEdit, onDelete, onOpen, dragging }: { project: Project; onEdit: (id: string) => void; onDelete: (id: string) => void; onOpen: (id: string) => void; dragging?: boolean; }) {
@@ -35,7 +36,7 @@ export default function ProjectCard({ project, onEdit, onDelete, onOpen, draggin
 
   return (
     <article
-      className={`card ${dragging ? 'dragging' : ''}`}
+      className={`card${project.isImportant ? ' important' : ''}${dragging ? ' dragging' : ''}`}
       draggable={true}
       data-id={project.id}
       role="button"
@@ -48,6 +49,7 @@ export default function ProjectCard({ project, onEdit, onDelete, onOpen, draggin
           <div className="card-title">{project.name}</div>
           <div className="card-type-row">
             <span className={`project-type-badge ${project.projectType}`}>{project.projectType === 'software' ? 'Software' : 'Business'}</span>
+            {project.isImportant && <span className="important-badge">Important</span>}
             {project.isFun && <span className="fun-badge">Fun</span>}
           </div>
         </div>

@@ -978,6 +978,30 @@ main { padding: 2rem 2.4rem 4rem; }
   font-size: 0.75rem;
 }
 
+/* Important projects */
+.important-badge, .toggle-important-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  background: linear-gradient(180deg, #ef4444, #b91c1c);
+  color: #fff;
+  border-radius: 999px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  box-shadow: 0 2px 8px rgba(239,68,68,0.3);
+}
+.important-badge::before, .toggle-important-badge::before { content: '★'; font-size: 0.65rem; line-height: 1; }
+.toggle-important-badge { padding: 0.35rem 0.75rem; font-size: 0.65rem; margin-left: auto; }
+.card.important { border-color: rgba(239,68,68,0.6); background: linear-gradient(180deg, rgba(239,68,68,0.12), var(--s2) 60%); box-shadow: 0 0 0 1px rgba(239,68,68,0.25), 0 6px 20px rgba(239,68,68,0.15) }
+.card.important:hover { border-color: #ef4444 }
+.card.important::after { opacity:1; background:#ef4444 }
+.compact-row.important { border-color: rgba(239,68,68,0.6); background: linear-gradient(90deg, rgba(239,68,68,0.14), var(--s2) 70%); box-shadow: inset 3px 0 0 #ef4444 }
+.compact-row .important-badge { padding:0.12rem 0.4rem; font-size:0.52rem; box-shadow:none }
+
 /* Form Actions */
 .form-actions {
   display: flex;

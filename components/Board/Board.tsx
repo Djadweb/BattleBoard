@@ -12,7 +12,7 @@ const VIEW_STORAGE_KEY = 'pb_view';
 
 type BoardView = 'kanban' | 'list';
 
-type ProjectPayload = { name: string; desc?: string; tags?: string[]; todos: TodoItem[]; status: number; sortOrder?: number; projectType: ProjectType; isFun?: boolean };
+type ProjectPayload = { name: string; desc?: string; tags?: string[]; todos: TodoItem[]; status: number; sortOrder?: number; projectType: ProjectType; isFun?: boolean; isImportant?: boolean };
 
 function normalizeTodos(input: unknown): TodoItem[] {
   if (!Array.isArray(input)) return [];
@@ -39,7 +39,8 @@ function mapProject(row: any, fallback?: Partial<Project> | null): Project {
     sortOrder: typeof row.sort_order === 'number' ? row.sort_order : (fallback?.sortOrder ?? 0),
     date: (row.created_at || '').slice(0,10),
     projectType: row.project_type === 'business' ? 'business' : 'software',
-    isFun: row.is_fun === true
+    isFun: row.is_fun === true,
+    isImportant: row.is_important === true
   };
 }
 
@@ -49,7 +50,8 @@ function normalizeLocalProjects(raw: string): Project[] {
     todos: normalizeTodos(project.todos),
     sortOrder: typeof project.sortOrder === 'number' ? project.sortOrder : 0,
     projectType: project.projectType === 'business' ? 'business' : 'software',
-    isFun: project.isFun === true
+    isFun: project.isFun === true,
+    isImportant: project.isImportant === true
   }));
 }
 
@@ -291,6 +293,7 @@ export default function Board() {
           sort_order: payload.sortOrder ?? 0,
           project_type: payload.projectType,
           is_fun: payload.isFun ?? false,
+          is_important: payload.isImportant ?? false,
           updated_at: new Date().toISOString()
         };
         const { data, error } = await supabase.from('projects').update(updates).eq('id', targetId).eq('user_id', user.id).select();
@@ -311,7 +314,8 @@ export default function Board() {
           status: payload.status,
           sort_order: payload.sortOrder ?? 0,
           project_type: payload.projectType,
-          is_fun: payload.isFun ?? false
+          is_fun: payload.isFun ?? false,
+          is_important: payload.isImportant ?? false
         };
         const { data, error } = await supabase.from('projects').insert([toInsert]).select();
         if (error) throw error;
@@ -887,7 +891,7 @@ function CompactProjectRow({ project, onEdit, onDelete, onOpen, dragging }: { pr
 
   return (
     <div
-      className={`compact-row${dragging ? ' dragging' : ''}`}
+      className={`compact-row${project.isImportant ? ' important' : ''}${dragging ? ' dragging' : ''}`}
       draggable={true}
       data-id={project.id}
       role="button"
@@ -903,6 +907,7 @@ function CompactProjectRow({ project, onEdit, onDelete, onOpen, dragging }: { pr
       <div className="compact-main">
         <div className="compact-title-row">
           <span className="compact-name">{project.name}</span>
+          {project.isImportant && <span className="important-badge">Important</span>}
           {project.isFun && <span className="fun-badge">Fun</span>}
         </div>
         <div className="compact-meta">
@@ -928,6 +933,7 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave, cancelL
   const [status, setStatus] = useState<number>(normalizeStatusForType(editing?.status ?? 0, initialProjectType));
   const [projectType, setProjectType] = useState<ProjectType>(initialProjectType);
   const [isFun, setIsFun] = useState<boolean>(editing?.isFun ?? false);
+  const [isImportant, setIsImportant] = useState<boolean>(editing?.isImportant ?? false);
   const [activeTab, setActiveTab] = useState<'details' | 'todos' | 'settings'>('details');
   const statusOptions = getColumnsForType(projectType);
   const currentName = editing?.name || '';
@@ -935,8 +941,9 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave, cancelL
   const currentTags = (editing?.tags || []).join(', ');
   const currentProjectType = editing?.projectType ?? selectedType;
   const currentIsFun = editing?.isFun ?? false;
+  const currentIsImportant = editing?.isImportant ?? false;
   const currentStatus = editing?.status ?? 0;
-  const isDirty = name.trim() !== currentName || desc.trim() !== currentDesc || tagsRaw !== currentTags || projectType !== currentProjectType || isFun !== currentIsFun || status !== currentStatus;
+  const isDirty = name.trim() !== currentName || desc.trim() !== currentDesc || tagsRaw !== currentTags || projectType !== currentProjectType || isFun !== currentIsFun || isImportant !== currentIsImportant || status !== currentStatus;
 
   useEffect(() => {
     const nextProjectType = editing?.projectType ?? selectedType;
@@ -947,6 +954,7 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave, cancelL
     setStatus(normalizeStatusForType(editing?.status ?? 0, nextProjectType));
     setProjectType(nextProjectType);
     setIsFun(editing?.isFun ?? false);
+    setIsImportant(editing?.isImportant ?? false);
     setActiveTab('details');
   }, [editId, editing, selectedType]);
 
@@ -958,7 +966,7 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave, cancelL
     e?.preventDefault();
     if (!name.trim()) return;
     const tags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
-    await onSave({ name: name.trim(), desc: desc.trim(), tags, todos, status, projectType, isFun });
+    await onSave({ name: name.trim(), desc: desc.trim(), tags, todos, status, projectType, isFun, isImportant });
   }
 
   const todoStats = {
@@ -1122,6 +1130,22 @@ function ProjectForm({ projects, editId, selectedType, onCancel, onSave, cancelL
                 <span className="toggle-desc">Mark as a side project or experiment</span>
               </div>
               {isFun && <span className="toggle-fun-badge" aria-hidden="true">Fun</span>}
+            </label>
+          </div>
+
+          <div className="settings-group">
+            <label className="settings-toggle important-toggle">
+              <input
+                type="checkbox"
+                checked={isImportant}
+                onChange={(e) => setIsImportant(e.target.checked)}
+              />
+              <span className="toggle-slider" aria-hidden="true"></span>
+              <div className="toggle-content">
+                <span className="toggle-label">Important Project</span>
+                <span className="toggle-desc">Highlight this card so it stands out</span>
+              </div>
+              {isImportant && <span className="toggle-important-badge" aria-hidden="true">Important</span>}
             </label>
           </div>
 

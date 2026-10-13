@@ -348,6 +348,22 @@ export default function Board() {
     setDropTarget(null);
     try { e.dataTransfer.effectAllowed = 'move'; } catch (e) {}
   }
+  // Auto-scroll the page while dragging near the viewport top/bottom edges
+  // (native HTML5 drag doesn't reliably do this, e.g. under a sticky header).
+  useEffect(() => {
+    if (!draggingId) return;
+    const EDGE = 140, MAX = 28;
+    const onOver = (e: DragEvent) => {
+      const h = window.innerHeight;
+      let dy = 0;
+      if (e.clientY < EDGE) dy = -MAX * (1 - e.clientY / EDGE);
+      else if (e.clientY > h - EDGE) dy = MAX * (1 - (h - e.clientY) / EDGE);
+      if (dy) window.scrollBy(0, dy);
+    };
+    window.addEventListener('dragover', onOver);
+    return () => window.removeEventListener('dragover', onOver);
+  }, [draggingId]);
+
   function onDragEnd() { dragIdRef.current = null; setDropTarget(null); setDraggingId(null); setDragOverCol(null); }
 
   function onCardDragOver(e: React.DragEvent, colIdx: number, cardIdx: number, cardId: string) {
